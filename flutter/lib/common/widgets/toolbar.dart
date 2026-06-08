@@ -1153,6 +1153,25 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
         child: Text(translate('Swap control-command key'))));
   }
 
+  // macOS local Mission Control / Spaces passthrough.
+  // When the local machine is macOS, optionally pass `Ctrl + Arrow` to the
+  // local OS (for Spaces switching) instead of sending it to the remote.
+  // Global local option (read directly by the grab loop in src/keyboard.rs).
+  if (isMacOS && ffiModel.keyboard) {
+    final option = kOptionCtrlArrowLocal;
+    final value = mainGetLocalBoolOptionSync(option);
+    onChanged(bool? value) async {
+      if (value == null) return;
+      await bind.mainSetLocalOption(
+          key: option, value: bool2option(option, value));
+    }
+
+    v.add(TToggleMenu(
+        value: value,
+        onChanged: onChanged,
+        child: Text(translate('Pass Ctrl+Arrow to local (Mission Control)'))));
+  }
+
   // Relative mouse mode (gaming mode).
   // Only show when server supports MOUSE_TYPE_MOVE_RELATIVE (version >= 1.4.5)
   // Note: This feature is only available in Flutter client. Sciter client does not support this.

@@ -2035,6 +2035,19 @@ Future<bool> restoreWindowPosition(WindowType type,
         // No need to change the position of a sub window if no position is saved,
         // since the default position is already centered.
         // https://github.com/rustdesk/rustdesk/blob/317639169359936f7f9f85ef445ec9774218772d/flutter/lib/utils/multi_window_manager.dart#L163
+        // But still honor "start remote in full screen" for new remote sessions.
+        if (type == WindowType.RemoteDesktop &&
+            windowId != null &&
+            mainGetLocalBoolOptionSync(kOptionStartRemoteFullscreen)) {
+          Future.delayed(Duration(milliseconds: 300), () async {
+            if (kWindowId == windowId) {
+              stateGlobal.setFullscreen(true);
+            } else {
+              DesktopMultiWindow.invokeMethod(
+                  windowId, kWindowEventSetFullscreen, 'true');
+            }
+          });
+        }
         break;
     }
     return true;
@@ -2120,7 +2133,9 @@ Future<bool> restoreWindowPosition(WindowType type,
           await wc.setFrame(frame);
         }
       }
-      if (lpos.isFullscreen == true) {
+      if (lpos.isFullscreen == true ||
+          (type == WindowType.RemoteDesktop &&
+              mainGetLocalBoolOptionSync(kOptionStartRemoteFullscreen))) {
         if (!isMacOS) {
           await restoreFrame();
         }
@@ -2994,7 +3009,9 @@ int versionCmp(String v1, String v2) {
 }
 
 String getWindowName({WindowType? overrideType}) {
-  final name = bind.mainGetAppNameSync();
+  // Fork branding: window/title shows "WaveDesk" while the config-determining
+  // app name (mainGetAppNameSync) stays "RustDesk" to keep settings shared.
+  const name = "WaveDesk";
   switch (overrideType ?? kWindowType) {
     case WindowType.Main:
       return name;

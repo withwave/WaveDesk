@@ -507,6 +507,12 @@ class _GeneralState extends State<_General> {
           kOptionOpenNewConnInTabs,
           isServer: false,
         ),
+        _OptionCheckBox(
+          context,
+          'Always start remote session in full screen',
+          kOptionStartRemoteFullscreen,
+          isServer: false,
+        ),
         // though this is related to GUI, but opengl problem affects all users, so put in config rather than local
         if (isLinux)
           Tooltip(

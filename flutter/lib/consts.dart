@@ -83,6 +83,9 @@ const String kOptionScrollStyle = "scroll_style";
 const String kOptionEdgeScrollEdgeThickness = "edge-scroll-edge-thickness";
 const String kOptionImageQuality = "image_quality";
 const String kOptionOpenNewConnInTabs = "enable-open-new-connections-in-tabs";
+// Always start a new remote-desktop session window in full screen (same as the
+// toolbar's "Enter full screen"). Global local option, off by default.
+const String kOptionStartRemoteFullscreen = "start-remote-fullscreen";
 const String kOptionTextureRender = "use-texture-render";
 const String kOptionD3DRender = "allow-d3d-render";
 const String kOptionOpenInTabs = "allow-open-in-tabs";
@@ -200,6 +203,10 @@ const String kOptionAllowDeepLinkServerSettings =
 
 const String kOptionToggleViewOnly = "view-only";
 const String kOptionToggleShowMyCursor = "show-my-cursor";
+// macOS only: pass `Ctrl + Arrow` to the local OS (Mission Control / Spaces)
+// instead of sending it to the remote. Global local option, off by default.
+// Must match `OPTION_CTRL_ARROW_LOCAL` in src/keyboard.rs.
+const String kOptionCtrlArrowLocal = "allow-ctrl-arrow-local";
 
 const String kOptionDisableFloatingWindow = "disable-floating-window";
 

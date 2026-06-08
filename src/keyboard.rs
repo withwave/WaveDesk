@@ -609,6 +609,34 @@ fn should_block_relative_mouse_shortcut(key: Key, is_press: bool) -> bool {
     false
 }
 
+// Global local option key (must match `kOptionCtrlArrowLocal` in Flutter).
+#[cfg(target_os = "macos")]
+const OPTION_CTRL_ARROW_LOCAL: &str = "allow-ctrl-arrow-local";
+
+// Pass `Ctrl + Arrow` chords to the local macOS so that Mission Control
+// (Spaces switching) keeps working while a remote keyboard hook is active.
+#[cfg(target_os = "macos")]
+#[inline]
+fn is_local_passthrough_chord(key: Key) -> bool {
+    let is_arrow = matches!(
+        key,
+        Key::UpArrow | Key::DownArrow | Key::LeftArrow | Key::RightArrow
+    );
+    if !is_arrow {
+        return false;
+    }
+    let m = MODIFIERS_STATE.lock().unwrap();
+    *m.get(&Key::ControlLeft).unwrap_or(&false) || *m.get(&Key::ControlRight).unwrap_or(&false)
+}
+
+// Whether the user opted in to passing `Ctrl + Arrow` to the local OS.
+// Global local option, off by default ("Y" only when explicitly enabled).
+#[cfg(target_os = "macos")]
+#[inline]
+fn is_ctrl_arrow_local_enabled() -> bool {
+    hbb_common::config::LocalConfig::get_option(OPTION_CTRL_ARROW_LOCAL) == "Y"
+}
+
 fn start_grab_loop() {
     std::env::set_var("KEYBOARD_ONLY", "y");
     #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -617,6 +645,35 @@ fn start_grab_loop() {
             // fix #2211：CAPS LOCK don't work
             if key == Key::CapsLock || key == Key::NumLock {
                 return Some(event);
+            }
+
+            // macOS: optionally keep `Ctrl + Arrow` working locally for Mission
+            // Control / Spaces. Off by default; toggled per session from the
+            // remote toolbar's keyboard menu. The session lookup only runs for
+            // Ctrl/Arrow keys to avoid per-keystroke overhead.
+            #[cfg(target_os = "macos")]
+            if KEYBOARD_HOOKED.load(Ordering::SeqCst)
+                && matches!(
+                    key,
+                    Key::ControlLeft
+                        | Key::ControlRight
+                        | Key::UpArrow
+                        | Key::DownArrow
+                        | Key::LeftArrow
+                        | Key::RightArrow
+                )
+                && is_ctrl_arrow_local_enabled()
+            {
+                // Ctrl is sent to the remote AND passed to the local OS so the
+                // local shortcut chord can form.
+                if matches!(key, Key::ControlLeft | Key::ControlRight) {
+                    client::process_event(&get_keyboard_mode(), &event, None);
+                    return Some(event);
+                }
+                // Ctrl + Arrow is passed to the local OS only (not the remote).
+                if is_local_passthrough_chord(key) {
+                    return Some(event);
+                }
             }
 
             let _scan_code = event.position_code;
@@ -1544,8 +1601,12 @@ pub mod input_source {
             return;
         }
         if input_source == CONFIG_INPUT_SOURCE_1 {
+            // On an explicit user switch, prompt for Input Monitoring (true) so
+            // macOS shows the permission request / adds the app to the list,
+            // instead of silently failing. Needed for separately-signed forks
+            // that don't inherit the upstream app's grant.
             #[cfg(target_os = "macos")]
-            if !crate::platform::macos::is_can_input_monitoring(false) {
+            if !crate::platform::macos::is_can_input_monitoring(true) {
                 log::error!("change_input_source, is_can_input_monitoring() false");
                 return;
             }
