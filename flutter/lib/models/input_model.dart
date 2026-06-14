@@ -460,6 +460,20 @@ class InputModel {
   // Applies only to fast, non-smooth bursts to preserve single-step scrolling.
   // Flutter uses microseconds for dt, so velocity is in delta/us.
 
+  // macOS wheel accumulator. macOS emits many high-frequency momentum scroll
+  // events, and sending ±1 per event over-scrolls the remote. We instead
+  // accumulate the raw delta and emit wheel ticks proportional to the actual
+  // physical scroll distance. The step (raw delta units per tick) is derived
+  // from a per-connection sensitivity (`_wheelSpeed`, percent): higher speed =>
+  // smaller step => more scroll. Base step is the value at 100%.
+  double _wheelAccX = 0;
+  double _wheelAccY = 0;
+  static const double _kWheelBaseStepMacOS = 8.0;
+  int _wheelSpeed = kDefaultWheelSpeed;
+  double get _wheelStepMacOS =>
+      _kWheelBaseStepMacOS * 100.0 / _wheelSpeed.clamp(kMinWheelSpeed, kMaxWheelSpeed);
+  int get wheelSpeed => _wheelSpeed;
+
   // Relative mouse mode (for games/3D apps).
   final relativeMouseMode = false.obs;
   late final RelativeMouseModel _relativeMouse;
@@ -616,6 +630,23 @@ class InputModel {
       _trackpadSpeed = kDefaultTrackpadSpeed;
     }
     _trackpadSpeedInner = _trackpadSpeed / 100.0;
+  }
+
+  /// Load the per-connection macOS mouse wheel sensitivity (percent).
+  Future<void> updateWheelSpeed() async {
+    final v =
+        await bind.sessionGetFlutterOption(sessionId: sessionId, k: kOptionWheelSpeed);
+    _wheelSpeed = int.tryParse(v ?? '') ?? kDefaultWheelSpeed;
+    if (_wheelSpeed < kMinWheelSpeed || _wheelSpeed > kMaxWheelSpeed) {
+      _wheelSpeed = kDefaultWheelSpeed;
+    }
+  }
+
+  /// Persist the macOS mouse wheel sensitivity into the connection's settings.
+  Future<void> setWheelSpeed(int value) async {
+    _wheelSpeed = value.clamp(kMinWheelSpeed, kMaxWheelSpeed);
+    await bind.sessionSetFlutterOption(
+        sessionId: sessionId, k: kOptionWheelSpeed, v: '$_wheelSpeed');
   }
 
   void handleKeyDownEventModifiers(KeyEvent e) {
@@ -1648,6 +1679,36 @@ class InputModel {
             accel = 2;
           }
         }
+      }
+      // macOS: accumulate raw delta and emit ticks proportional to the actual
+      // scroll distance (scaled by the per-connection wheel sensitivity), so
+      // momentum events don't over-scroll the remote.
+      if (isMacOS) {
+        final step = _wheelStepMacOS;
+        int dx = 0;
+        int dy = 0;
+        if (rawDx.abs() > rawDy.abs()) {
+          _wheelAccY = 0;
+          _wheelAccX += rawDx;
+          final t = (_wheelAccX / step).truncate();
+          if (t != 0) {
+            _wheelAccX -= t * step;
+            dx = -t; // RustDesk sign convention: positive delta -> negative wheel
+          }
+        } else {
+          _wheelAccX = 0;
+          _wheelAccY += rawDy;
+          final t = (_wheelAccY / step).truncate();
+          if (t != 0) {
+            _wheelAccY -= t * step;
+            dy = -t;
+          }
+        }
+        if (dx == 0 && dy == 0) return;
+        bind.sessionSendMouse(
+            sessionId: sessionId,
+            msg: '{"type": "wheel", "x": "$dx", "y": "$dy"}');
+        return;
       }
       var dx = rawDx.toInt();
       var dy = rawDy.toInt();

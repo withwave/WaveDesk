@@ -279,6 +279,13 @@ const int kMinTrackpadSpeed = 10;
 const int kDefaultTrackpadSpeed = 100;
 const int kMaxTrackpadSpeed = 1000;
 
+// macOS mouse wheel sensitivity, stored per connection (peer flutter option).
+// Percent: higher = more scroll per physical wheel movement.
+const String kOptionWheelSpeed = 'wheel-speed';
+const int kMinWheelSpeed = 10;
+const int kDefaultWheelSpeed = 100;
+const int kMaxWheelSpeed = 300;
+
 // relative mouse mode
 /// Throttle duration (in milliseconds) for updating pointer lock center during
 /// window move/resize events. Lower values provide more responsive updates but

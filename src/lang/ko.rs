@@ -690,6 +690,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("websocket_tip", "WebSocket을 사용할 때는 릴레이 연결만 지원됩니다."),
         ("Use WebSocket", "웹소켓 사용"),
         ("Trackpad speed", "트랙패드 속도"),
+        ("Mouse wheel speed", "마우스 휠 속도"),
         ("Default trackpad speed", "기본 트랙패드 속도"),
         ("Numeric one-time password", "숫자 일회용 비밀번호"),
         ("Enable IPv6 P2P connection", "IPv6 P2P 연결 사용"),

@@ -1,8 +1,8 @@
 diff --git a/README.md b/README.md
-index ae5c8d37c..e0452da8d 100644
+index ae5c8d37c..4cafc77a4 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,3 +1,59 @@
+@@ -1,3 +1,62 @@
 +<!-- ───────────────────────────── WaveDesk ───────────────────────────── -->
 +
 +# 🌊 WaveDesk
@@ -19,7 +19,10 @@ index ae5c8d37c..e0452da8d 100644
 +
 +- **`Ctrl + Arrow` local passthrough** — during a remote session, optionally send
 +  `Ctrl + ←/→/↑/↓` to your **local** Mac (Mission Control / Spaces) instead of the
-+  remote. Toggle in the remote toolbar's keyboard menu. *Off by default.*
++  remote. Toggle in the remote toolbar's keyboard menu, or flip it instantly with
++  the **`Ctrl + Shift + \`** hotkey. *Off by default.*
++- **Adjustable mouse wheel sensitivity** — per‑connection wheel speed (mouse menu
++  → *Mouse wheel speed*, 10–300%) so scrolling feels right on each remote.
 +- **Always start remote session in full screen** — new session windows open in full
 +  screen. Toggle in **Settings → General → Other**. *On by default.*
 +- **Friendlier permission flow** — selecting *Input source 1* prompts for the
@@ -64,10 +67,10 @@ index ae5c8d37c..e0452da8d 100644
    <a href="#raw-steps-to-build">Build</a> •
 diff --git a/WAVEDESK.md b/WAVEDESK.md
 new file mode 100644
-index 000000000..6ab670963
+index 000000000..cb0a11d9a
 --- /dev/null
 +++ b/WAVEDESK.md
-@@ -0,0 +1,130 @@
+@@ -0,0 +1,151 @@
 +# WaveDesk
 +
 +**WaveDesk** is a macOS-focused fork of [RustDesk](https://github.com/rustdesk/rustdesk)
@@ -91,11 +94,27 @@ index 000000000..6ab670963
 +
 +- Toggle: remote session toolbar → keyboard menu → **"Pass Ctrl+Arrow to local
 +  (Mission Control)"**. Off by default.
++- **Instant toggle hotkey: `Ctrl + Shift + \`** — flips the option on/off mid
++  session without opening the menu (handled in the grab loop, then consumed).
 +- Backed by the global local option `allow-ctrl-arrow-local`, read directly by
 +  the rdev grab loop (`src/keyboard.rs`). `Ctrl` is sent to both remote and
 +  local (to avoid an orphan modifier); only the arrow is withheld from the
 +  remote.
 +- Requires the keyboard grab (Input source 1 / Input Monitoring permission).
++
++### 4. Mouse wheel sensitivity (per connection)
++macOS emits many high-frequency momentum scroll events; sending one wheel tick
++per event over-scrolls the remote. WaveDesk accumulates the raw scroll delta and
++emits ticks proportional to the actual physical scroll distance, scaled by an
++adjustable sensitivity.
++
++- Adjust: remote session toolbar → mouse menu → **"Mouse wheel speed"**
++  (10–300%, default 100%). Higher = more scroll per physical wheel movement.
++- **Saved per connection** in the peer's flutter options
++  (`sessionGetFlutterOption` / `sessionSetFlutterOption`, key `wheel-speed`), so
++  each remote machine keeps its own setting. macOS local client only.
++- Implemented in `flutter/lib/models/input_model.dart`
++  (`onPointerSignalImage`, `updateWheelSpeed` / `setWheelSpeed`).
 +
 +### 2. Always start remote session in full screen
 +New remote-desktop windows can start in full screen automatically.
@@ -146,11 +165,16 @@ index 000000000..6ab670963
 +
 +## Files changed vs upstream
 +
-+- `src/keyboard.rs` — Ctrl+Arrow passthrough + global option; input-source prompt.
++- `src/keyboard.rs` — Ctrl+Arrow passthrough + global option; `Ctrl+Shift+\`
++  toggle hotkey; input-source prompt.
 +- `flutter/lib/common.dart` — start-in-fullscreen; `getWindowName()` → "WaveDesk".
 +- `flutter/lib/common/widgets/toolbar.dart` — Ctrl+Arrow keyboard-menu toggle.
 +- `flutter/lib/desktop/pages/desktop_setting_page.dart` — fullscreen setting.
-+- `flutter/lib/consts.dart` — option keys.
++- `flutter/lib/models/input_model.dart` — macOS wheel accumulator + sensitivity.
++- `flutter/lib/models/model.dart` — load wheel speed on session attach.
++- `flutter/lib/common/widgets/dialog.dart` — "Mouse wheel speed" dialog.
++- `flutter/lib/desktop/widgets/remote_toolbar.dart` — wheel-speed menu item.
++- `flutter/lib/consts.dart` — option keys; wheel-speed bounds.
 +- `src/lang/en.rs`, `src/lang/ko.rs` — UI strings; permission prompts → "WaveDesk".
 +- `flutter/macos/Runner/Info.plist` — CFBundleName/DisplayName/URLName.
 +- `flutter/macos/Runner/Configs/AppInfo.xcconfig` — PRODUCT_NAME, PRODUCT_MODULE_NAME, bundle id.
@@ -356,11 +380,55 @@ index 366a7b6ba..06fdd3c33 100644
    switch (overrideType ?? kWindowType) {
      case WindowType.Main:
        return name;
+diff --git a/flutter/lib/common/widgets/dialog.dart b/flutter/lib/common/widgets/dialog.dart
+index 7534fb2a1..a932fd28a 100644
+--- a/flutter/lib/common/widgets/dialog.dart
++++ b/flutter/lib/common/widgets/dialog.dart
+@@ -1927,6 +1927,39 @@ trackpadSpeedDialog(SessionID sessionId, FFI ffi) async {
+       [btnClose]);
+ }
+ 
++// macOS mouse wheel sensitivity, saved per connection.
++wheelSpeedDialog(SessionID sessionId, FFI ffi) async {
++  final init = ffi.inputModel.wheelSpeed;
++  final cur = SimpleWrapper(init);
++  final btnClose = dialogButton('Close', onPressed: () async {
++    if (cur.value != init) {
++      await ffi.inputModel.setWheelSpeed(cur.value);
++    }
++    ffi.dialogManager.dismissAll();
++  });
++  msgBoxCommon(
++      ffi.dialogManager,
++      'Mouse wheel speed',
++      StatefulBuilder(builder: (context, setState) {
++        return Row(children: [
++          Expanded(
++            flex: 3,
++            child: Slider(
++              value: cur.value.toDouble(),
++              min: kMinWheelSpeed.toDouble(),
++              max: kMaxWheelSpeed.toDouble(),
++              divisions: ((kMaxWheelSpeed - kMinWheelSpeed) / 10).round(),
++              onChanged: (v) => setState(() => cur.value = v.round()),
++            ),
++          ),
++          SizedBox(
++              width: 56,
++              child: Text('${cur.value}%', textAlign: TextAlign.center)),
++        ]);
++      }),
++      [btnClose]);
++}
++
+ void deleteConfirmDialog(Function onSubmit, String title) async {
+   gFFI.dialogManager.show(
+     (setState, close, context) {
 diff --git a/flutter/lib/common/widgets/toolbar.dart b/flutter/lib/common/widgets/toolbar.dart
-index 637904c2c..190e90852 100644
+index 637904c2c..a90b56815 100644
 --- a/flutter/lib/common/widgets/toolbar.dart
 +++ b/flutter/lib/common/widgets/toolbar.dart
-@@ -1153,6 +1153,25 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
+@@ -1153,6 +1153,26 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
          child: Text(translate('Swap control-command key'))));
    }
  
@@ -380,14 +448,15 @@ index 637904c2c..190e90852 100644
 +    v.add(TToggleMenu(
 +        value: value,
 +        onChanged: onChanged,
-+        child: Text(translate('Pass Ctrl+Arrow to local (Mission Control)'))));
++        child: Text(
++            '${translate('Pass Ctrl+Arrow to local (Mission Control)')}  (⌃⇧\\)')));
 +  }
 +
    // Relative mouse mode (gaming mode).
    // Only show when server supports MOUSE_TYPE_MOVE_RELATIVE (version >= 1.4.5)
    // Note: This feature is only available in Flutter client. Sciter client does not support this.
 diff --git a/flutter/lib/consts.dart b/flutter/lib/consts.dart
-index adf7b1d45..80a8a8c78 100644
+index adf7b1d45..73d92e36e 100644
 --- a/flutter/lib/consts.dart
 +++ b/flutter/lib/consts.dart
 @@ -83,6 +83,9 @@ const String kOptionScrollStyle = "scroll_style";
@@ -411,6 +480,20 @@ index adf7b1d45..80a8a8c78 100644
  
  const String kOptionDisableFloatingWindow = "disable-floating-window";
  
+@@ -272,6 +279,13 @@ const int kMinTrackpadSpeed = 10;
+ const int kDefaultTrackpadSpeed = 100;
+ const int kMaxTrackpadSpeed = 1000;
+ 
++// macOS mouse wheel sensitivity, stored per connection (peer flutter option).
++// Percent: higher = more scroll per physical wheel movement.
++const String kOptionWheelSpeed = 'wheel-speed';
++const int kMinWheelSpeed = 10;
++const int kDefaultWheelSpeed = 100;
++const int kMaxWheelSpeed = 300;
++
+ // relative mouse mode
+ /// Throttle duration (in milliseconds) for updating pointer lock center during
+ /// window move/resize events. Lower values provide more responsive updates but
 diff --git a/flutter/lib/desktop/pages/desktop_setting_page.dart b/flutter/lib/desktop/pages/desktop_setting_page.dart
 index d1d620014..9becf1716 100644
 --- a/flutter/lib/desktop/pages/desktop_setting_page.dart
@@ -428,6 +511,126 @@ index d1d620014..9becf1716 100644
          // though this is related to GUI, but opengl problem affects all users, so put in config rather than local
          if (isLinux)
            Tooltip(
+diff --git a/flutter/lib/desktop/widgets/remote_toolbar.dart b/flutter/lib/desktop/widgets/remote_toolbar.dart
+index 210cc8571..cc2b96c01 100644
+--- a/flutter/lib/desktop/widgets/remote_toolbar.dart
++++ b/flutter/lib/desktop/widgets/remote_toolbar.dart
+@@ -2276,6 +2276,15 @@ class _KeyboardMenu extends StatelessWidget {
+           ffi: ffi,
+         );
+         speedWidgets.add(trackpad);
++        // macOS: per-connection mouse wheel sensitivity.
++        if (isMacOS) {
++          speedWidgets.add(MenuButton(
++            child:
++                Text(translate('Mouse wheel speed')).paddingOnly(left: 26.0),
++            onPressed: enabled ? () => wheelSpeedDialog(sessionId, ffi) : null,
++            ffi: ffi,
++          ));
++        }
+       }
+     }
+     return speedWidgets;
+diff --git a/flutter/lib/models/input_model.dart b/flutter/lib/models/input_model.dart
+index fc3b8903c..cae070c2b 100644
+--- a/flutter/lib/models/input_model.dart
++++ b/flutter/lib/models/input_model.dart
+@@ -460,6 +460,20 @@ class InputModel {
+   // Applies only to fast, non-smooth bursts to preserve single-step scrolling.
+   // Flutter uses microseconds for dt, so velocity is in delta/us.
+ 
++  // macOS wheel accumulator. macOS emits many high-frequency momentum scroll
++  // events, and sending ±1 per event over-scrolls the remote. We instead
++  // accumulate the raw delta and emit wheel ticks proportional to the actual
++  // physical scroll distance. The step (raw delta units per tick) is derived
++  // from a per-connection sensitivity (`_wheelSpeed`, percent): higher speed =>
++  // smaller step => more scroll. Base step is the value at 100%.
++  double _wheelAccX = 0;
++  double _wheelAccY = 0;
++  static const double _kWheelBaseStepMacOS = 8.0;
++  int _wheelSpeed = kDefaultWheelSpeed;
++  double get _wheelStepMacOS =>
++      _kWheelBaseStepMacOS * 100.0 / _wheelSpeed.clamp(kMinWheelSpeed, kMaxWheelSpeed);
++  int get wheelSpeed => _wheelSpeed;
++
+   // Relative mouse mode (for games/3D apps).
+   final relativeMouseMode = false.obs;
+   late final RelativeMouseModel _relativeMouse;
+@@ -618,6 +632,23 @@ class InputModel {
+     _trackpadSpeedInner = _trackpadSpeed / 100.0;
+   }
+ 
++  /// Load the per-connection macOS mouse wheel sensitivity (percent).
++  Future<void> updateWheelSpeed() async {
++    final v =
++        await bind.sessionGetFlutterOption(sessionId: sessionId, k: kOptionWheelSpeed);
++    _wheelSpeed = int.tryParse(v ?? '') ?? kDefaultWheelSpeed;
++    if (_wheelSpeed < kMinWheelSpeed || _wheelSpeed > kMaxWheelSpeed) {
++      _wheelSpeed = kDefaultWheelSpeed;
++    }
++  }
++
++  /// Persist the macOS mouse wheel sensitivity into the connection's settings.
++  Future<void> setWheelSpeed(int value) async {
++    _wheelSpeed = value.clamp(kMinWheelSpeed, kMaxWheelSpeed);
++    await bind.sessionSetFlutterOption(
++        sessionId: sessionId, k: kOptionWheelSpeed, v: '$_wheelSpeed');
++  }
++
+   void handleKeyDownEventModifiers(KeyEvent e) {
+     KeyUpEvent upEvent(e) => KeyUpEvent(
+           physicalKey: e.physicalKey,
+@@ -1649,6 +1680,36 @@ class InputModel {
+           }
+         }
+       }
++      // macOS: accumulate raw delta and emit ticks proportional to the actual
++      // scroll distance (scaled by the per-connection wheel sensitivity), so
++      // momentum events don't over-scroll the remote.
++      if (isMacOS) {
++        final step = _wheelStepMacOS;
++        int dx = 0;
++        int dy = 0;
++        if (rawDx.abs() > rawDy.abs()) {
++          _wheelAccY = 0;
++          _wheelAccX += rawDx;
++          final t = (_wheelAccX / step).truncate();
++          if (t != 0) {
++            _wheelAccX -= t * step;
++            dx = -t; // RustDesk sign convention: positive delta -> negative wheel
++          }
++        } else {
++          _wheelAccX = 0;
++          _wheelAccY += rawDy;
++          final t = (_wheelAccY / step).truncate();
++          if (t != 0) {
++            _wheelAccY -= t * step;
++            dy = -t;
++          }
++        }
++        if (dx == 0 && dy == 0) return;
++        bind.sessionSendMouse(
++            sessionId: sessionId,
++            msg: '{"type": "wheel", "x": "$dx", "y": "$dy"}');
++        return;
++      }
+       var dx = rawDx.toInt();
+       var dy = rawDy.toInt();
+       if (rawDx.abs() > rawDy.abs()) {
+diff --git a/flutter/lib/models/model.dart b/flutter/lib/models/model.dart
+index e94834a2b..288964f31 100644
+--- a/flutter/lib/models/model.dart
++++ b/flutter/lib/models/model.dart
+@@ -3764,6 +3764,9 @@ class FFI {
+ 
+     if (isDesktop) {
+       inputModel.updateTrackpadSpeed();
++      if (isMacOS) {
++        inputModel.updateWheelSpeed();
++      }
+     }
+ 
+     // CAUTION: `sessionStart()` and `sessionStartWithDisplays()` are an async functions.
 diff --git a/flutter/macos/Runner.xcodeproj/project.pbxproj b/flutter/macos/Runner.xcodeproj/project.pbxproj
 index c41bfa117..d2d5a3109 100644
 --- a/flutter/macos/Runner.xcodeproj/project.pbxproj
@@ -7152,10 +7355,10 @@ index 000000000..d058041f4
 +echo "  - flutter:( cd flutter && flutter build macos --release )   # -> WaveDesk.app"
 +echo "  - sign:   see WAVEDESK.md"
 diff --git a/src/keyboard.rs b/src/keyboard.rs
-index b9cf4da2d..84cbb8d68 100644
+index b9cf4da2d..7ecd8148c 100644
 --- a/src/keyboard.rs
 +++ b/src/keyboard.rs
-@@ -609,6 +609,34 @@ fn should_block_relative_mouse_shortcut(key: Key, is_press: bool) -> bool {
+@@ -609,6 +609,64 @@ fn should_block_relative_mouse_shortcut(key: Key, is_press: bool) -> bool {
      false
  }
  
@@ -7187,13 +7390,54 @@ index b9cf4da2d..84cbb8d68 100644
 +    hbb_common::config::LocalConfig::get_option(OPTION_CTRL_ARROW_LOCAL) == "Y"
 +}
 +
++// Instantly flip the `Ctrl + Arrow` local-passthrough option. Triggered by the
++// `Ctrl + Shift + \` hotkey so users can switch without opening the menu.
++#[cfg(target_os = "macos")]
++#[inline]
++fn toggle_ctrl_arrow_local() {
++    use hbb_common::config::LocalConfig;
++    let next = if is_ctrl_arrow_local_enabled() {
++        String::new()
++    } else {
++        "Y".to_owned()
++    };
++    LocalConfig::set_option(OPTION_CTRL_ARROW_LOCAL.to_owned(), next);
++}
++
++// True when the `Ctrl + Shift + \` toggle hotkey is pressed (both a Ctrl and a
++// Shift modifier are held alongside the backslash key).
++#[cfg(target_os = "macos")]
++#[inline]
++fn is_ctrl_arrow_toggle_hotkey(key: Key) -> bool {
++    if key != Key::BackSlash {
++        return false;
++    }
++    let m = MODIFIERS_STATE.lock().unwrap();
++    let ctrl = *m.get(&Key::ControlLeft).unwrap_or(&false)
++        || *m.get(&Key::ControlRight).unwrap_or(&false);
++    let shift = *m.get(&Key::ShiftLeft).unwrap_or(&false)
++        || *m.get(&Key::ShiftRight).unwrap_or(&false);
++    ctrl && shift
++}
++
  fn start_grab_loop() {
      std::env::set_var("KEYBOARD_ONLY", "y");
      #[cfg(any(target_os = "windows", target_os = "macos"))]
-@@ -619,6 +647,35 @@ fn start_grab_loop() {
+@@ -619,6 +677,46 @@ fn start_grab_loop() {
                  return Some(event);
              }
  
++            // macOS: `Ctrl + Shift + \` instantly toggles the Ctrl+Arrow local
++            // passthrough on/off, then is consumed (not sent to the remote).
++            #[cfg(target_os = "macos")]
++            if is_press
++                && KEYBOARD_HOOKED.load(Ordering::SeqCst)
++                && is_ctrl_arrow_toggle_hotkey(key)
++            {
++                toggle_ctrl_arrow_local();
++                return None;
++            }
++
 +            // macOS: optionally keep `Ctrl + Arrow` working locally for Mission
 +            // Control / Spaces. Off by default; toggled per session from the
 +            // remote toolbar's keyboard menu. The session lookup only runs for
@@ -7226,7 +7470,7 @@ index b9cf4da2d..84cbb8d68 100644
              let _scan_code = event.position_code;
              let _code = event.platform_code as KeyCode;
  
-@@ -1544,8 +1601,12 @@ pub mod input_source {
+@@ -1544,8 +1642,12 @@ pub mod input_source {
              return;
          }
          if input_source == CONFIG_INPUT_SOURCE_1 {
@@ -7241,7 +7485,7 @@ index b9cf4da2d..84cbb8d68 100644
                  return;
              }
 diff --git a/src/lang/en.rs b/src/lang/en.rs
-index d68361255..2ac65dcf6 100644
+index d68361255..e7787d9c9 100644
 --- a/src/lang/en.rs
 +++ b/src/lang/en.rs
 @@ -34,8 +34,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
@@ -7266,17 +7510,18 @@ index d68361255..2ac65dcf6 100644
          ("request_elevation_tip", "You can also request elevation if there is someone on the remote side."),
          ("Elevation Error", "Elevation error"),
          ("still_click_uac_tip", "Still requires the remote user to click OK on the UAC window of running RustDesk."),
-@@ -206,6 +206,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
+@@ -206,6 +206,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
          ("input_source_1_tip", "Input source 1"),
          ("input_source_2_tip", "Input source 2"),
          ("swap-left-right-mouse", "Swap left-right mouse button"),
++        ("Mouse wheel speed", "Mouse wheel speed"),
 +        ("Pass Ctrl+Arrow to local (Mission Control)", "Pass Ctrl+Arrow to local (Mission Control)"),
 +        ("Always start remote session in full screen", "Always start remote session in full screen"),
          ("2FA code", "2FA code"),
          ("enable-2fa-title", "Enable two-factor authentication"),
          ("enable-2fa-desc", "Please set up your authenticator now. You can use an authenticator app such as Authy, Microsoft or Google Authenticator on your phone or desktop.\n\nScan the QR code with your app and enter the code that your app shows to enable two-factor authentication."),
 diff --git a/src/lang/ko.rs b/src/lang/ko.rs
-index 025633154..3589f1229 100644
+index 025633154..076375577 100644
 --- a/src/lang/ko.rs
 +++ b/src/lang/ko.rs
 @@ -148,8 +148,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
@@ -7310,3 +7555,11 @@ index 025633154..3589f1229 100644
          ("2FA code", "이중 인증 코드"),
          ("More", "더 많은"),
          ("enable-2fa-title", "이중 인증 허용"),
+@@ -688,6 +690,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
+         ("websocket_tip", "WebSocket을 사용할 때는 릴레이 연결만 지원됩니다."),
+         ("Use WebSocket", "웹소켓 사용"),
+         ("Trackpad speed", "트랙패드 속도"),
++        ("Mouse wheel speed", "마우스 휠 속도"),
+         ("Default trackpad speed", "기본 트랙패드 속도"),
+         ("Numeric one-time password", "숫자 일회용 비밀번호"),
+         ("Enable IPv6 P2P connection", "IPv6 P2P 연결 사용"),

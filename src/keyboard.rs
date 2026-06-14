@@ -637,6 +637,36 @@ fn is_ctrl_arrow_local_enabled() -> bool {
     hbb_common::config::LocalConfig::get_option(OPTION_CTRL_ARROW_LOCAL) == "Y"
 }
 
+// Instantly flip the `Ctrl + Arrow` local-passthrough option. Triggered by the
+// `Ctrl + Shift + \` hotkey so users can switch without opening the menu.
+#[cfg(target_os = "macos")]
+#[inline]
+fn toggle_ctrl_arrow_local() {
+    use hbb_common::config::LocalConfig;
+    let next = if is_ctrl_arrow_local_enabled() {
+        String::new()
+    } else {
+        "Y".to_owned()
+    };
+    LocalConfig::set_option(OPTION_CTRL_ARROW_LOCAL.to_owned(), next);
+}
+
+// True when the `Ctrl + Shift + \` toggle hotkey is pressed (both a Ctrl and a
+// Shift modifier are held alongside the backslash key).
+#[cfg(target_os = "macos")]
+#[inline]
+fn is_ctrl_arrow_toggle_hotkey(key: Key) -> bool {
+    if key != Key::BackSlash {
+        return false;
+    }
+    let m = MODIFIERS_STATE.lock().unwrap();
+    let ctrl = *m.get(&Key::ControlLeft).unwrap_or(&false)
+        || *m.get(&Key::ControlRight).unwrap_or(&false);
+    let shift = *m.get(&Key::ShiftLeft).unwrap_or(&false)
+        || *m.get(&Key::ShiftRight).unwrap_or(&false);
+    ctrl && shift
+}
+
 fn start_grab_loop() {
     std::env::set_var("KEYBOARD_ONLY", "y");
     #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -645,6 +675,17 @@ fn start_grab_loop() {
             // fix #2211：CAPS LOCK don't work
             if key == Key::CapsLock || key == Key::NumLock {
                 return Some(event);
+            }
+
+            // macOS: `Ctrl + Shift + \` instantly toggles the Ctrl+Arrow local
+            // passthrough on/off, then is consumed (not sent to the remote).
+            #[cfg(target_os = "macos")]
+            if is_press
+                && KEYBOARD_HOOKED.load(Ordering::SeqCst)
+                && is_ctrl_arrow_toggle_hotkey(key)
+            {
+                toggle_ctrl_arrow_local();
+                return None;
             }
 
             // macOS: optionally keep `Ctrl + Arrow` working locally for Mission

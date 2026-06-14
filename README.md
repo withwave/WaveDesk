@@ -14,7 +14,10 @@ builds — while **sharing connection settings** with an installed RustDesk on t
 
 - **`Ctrl + Arrow` local passthrough** — during a remote session, optionally send
   `Ctrl + ←/→/↑/↓` to your **local** Mac (Mission Control / Spaces) instead of the
-  remote. Toggle in the remote toolbar's keyboard menu. *Off by default.*
+  remote. Toggle in the remote toolbar's keyboard menu, or flip it instantly with
+  the **`Ctrl + Shift + \`** hotkey. *Off by default.*
+- **Adjustable mouse wheel sensitivity** — per‑connection wheel speed (mouse menu
+  → *Mouse wheel speed*, 10–300%) so scrolling feels right on each remote.
 - **Always start remote session in full screen** — new session windows open in full
   screen. Toggle in **Settings → General → Other**. *On by default.*
 - **Friendlier permission flow** — selecting *Input source 1* prompts for the

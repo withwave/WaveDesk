@@ -1169,7 +1169,8 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
     v.add(TToggleMenu(
         value: value,
         onChanged: onChanged,
-        child: Text(translate('Pass Ctrl+Arrow to local (Mission Control)'))));
+        child: Text(
+            '${translate('Pass Ctrl+Arrow to local (Mission Control)')}  (⌃⇧\\)')));
   }
 
   // Relative mouse mode (gaming mode).

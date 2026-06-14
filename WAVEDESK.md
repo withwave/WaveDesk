@@ -21,11 +21,27 @@ to the **local** OS instead.
 
 - Toggle: remote session toolbar → keyboard menu → **"Pass Ctrl+Arrow to local
   (Mission Control)"**. Off by default.
+- **Instant toggle hotkey: `Ctrl + Shift + \`** — flips the option on/off mid
+  session without opening the menu (handled in the grab loop, then consumed).
 - Backed by the global local option `allow-ctrl-arrow-local`, read directly by
   the rdev grab loop (`src/keyboard.rs`). `Ctrl` is sent to both remote and
   local (to avoid an orphan modifier); only the arrow is withheld from the
   remote.
 - Requires the keyboard grab (Input source 1 / Input Monitoring permission).
+
+### 4. Mouse wheel sensitivity (per connection)
+macOS emits many high-frequency momentum scroll events; sending one wheel tick
+per event over-scrolls the remote. WaveDesk accumulates the raw scroll delta and
+emits ticks proportional to the actual physical scroll distance, scaled by an
+adjustable sensitivity.
+
+- Adjust: remote session toolbar → mouse menu → **"Mouse wheel speed"**
+  (10–300%, default 100%). Higher = more scroll per physical wheel movement.
+- **Saved per connection** in the peer's flutter options
+  (`sessionGetFlutterOption` / `sessionSetFlutterOption`, key `wheel-speed`), so
+  each remote machine keeps its own setting. macOS local client only.
+- Implemented in `flutter/lib/models/input_model.dart`
+  (`onPointerSignalImage`, `updateWheelSpeed` / `setWheelSpeed`).
 
 ### 2. Always start remote session in full screen
 New remote-desktop windows can start in full screen automatically.
@@ -76,11 +92,16 @@ Key design points:
 
 ## Files changed vs upstream
 
-- `src/keyboard.rs` — Ctrl+Arrow passthrough + global option; input-source prompt.
+- `src/keyboard.rs` — Ctrl+Arrow passthrough + global option; `Ctrl+Shift+\`
+  toggle hotkey; input-source prompt.
 - `flutter/lib/common.dart` — start-in-fullscreen; `getWindowName()` → "WaveDesk".
 - `flutter/lib/common/widgets/toolbar.dart` — Ctrl+Arrow keyboard-menu toggle.
 - `flutter/lib/desktop/pages/desktop_setting_page.dart` — fullscreen setting.
-- `flutter/lib/consts.dart` — option keys.
+- `flutter/lib/models/input_model.dart` — macOS wheel accumulator + sensitivity.
+- `flutter/lib/models/model.dart` — load wheel speed on session attach.
+- `flutter/lib/common/widgets/dialog.dart` — "Mouse wheel speed" dialog.
+- `flutter/lib/desktop/widgets/remote_toolbar.dart` — wheel-speed menu item.
+- `flutter/lib/consts.dart` — option keys; wheel-speed bounds.
 - `src/lang/en.rs`, `src/lang/ko.rs` — UI strings; permission prompts → "WaveDesk".
 - `flutter/macos/Runner/Info.plist` — CFBundleName/DisplayName/URLName.
 - `flutter/macos/Runner/Configs/AppInfo.xcconfig` — PRODUCT_NAME, PRODUCT_MODULE_NAME, bundle id.

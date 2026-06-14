@@ -1927,6 +1927,39 @@ trackpadSpeedDialog(SessionID sessionId, FFI ffi) async {
       [btnClose]);
 }
 
+// macOS mouse wheel sensitivity, saved per connection.
+wheelSpeedDialog(SessionID sessionId, FFI ffi) async {
+  final init = ffi.inputModel.wheelSpeed;
+  final cur = SimpleWrapper(init);
+  final btnClose = dialogButton('Close', onPressed: () async {
+    if (cur.value != init) {
+      await ffi.inputModel.setWheelSpeed(cur.value);
+    }
+    ffi.dialogManager.dismissAll();
+  });
+  msgBoxCommon(
+      ffi.dialogManager,
+      'Mouse wheel speed',
+      StatefulBuilder(builder: (context, setState) {
+        return Row(children: [
+          Expanded(
+            flex: 3,
+            child: Slider(
+              value: cur.value.toDouble(),
+              min: kMinWheelSpeed.toDouble(),
+              max: kMaxWheelSpeed.toDouble(),
+              divisions: ((kMaxWheelSpeed - kMinWheelSpeed) / 10).round(),
+              onChanged: (v) => setState(() => cur.value = v.round()),
+            ),
+          ),
+          SizedBox(
+              width: 56,
+              child: Text('${cur.value}%', textAlign: TextAlign.center)),
+        ]);
+      }),
+      [btnClose]);
+}
+
 void deleteConfirmDialog(Function onSubmit, String title) async {
   gFFI.dialogManager.show(
     (setState, close, context) {

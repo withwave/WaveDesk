@@ -206,6 +206,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("input_source_1_tip", "Input source 1"),
         ("input_source_2_tip", "Input source 2"),
         ("swap-left-right-mouse", "Swap left-right mouse button"),
+        ("Mouse wheel speed", "Mouse wheel speed"),
         ("Pass Ctrl+Arrow to local (Mission Control)", "Pass Ctrl+Arrow to local (Mission Control)"),
         ("Always start remote session in full screen", "Always start remote session in full screen"),
         ("2FA code", "2FA code"),
