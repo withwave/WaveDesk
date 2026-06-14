@@ -1,3 +1,55 @@
+<!-- ───────────────────────────── WaveDesk ───────────────────────────── -->
+
+# 🌊 WaveDesk
+
+**WaveDesk** is a macOS-focused fork of [RustDesk](https://github.com/rustdesk/rustdesk),
+maintained by **MODIN COMPANY**. It keeps the upstream diff intentionally small and
+adds a few macOS quality‑of‑life features, its own app identity, and signed/notarized
+builds — while **sharing connection settings** with an installed RustDesk on the same Mac.
+
+> The original RustDesk README follows below. See **[WAVEDESK.md](WAVEDESK.md)** for
+> design notes and how to re‑apply the fork on top of newer upstream releases.
+
+### ✨ What WaveDesk adds (macOS)
+
+- **`Ctrl + Arrow` local passthrough** — during a remote session, optionally send
+  `Ctrl + ←/→/↑/↓` to your **local** Mac (Mission Control / Spaces) instead of the
+  remote. Toggle in the remote toolbar's keyboard menu. *Off by default.*
+- **Always start remote session in full screen** — new session windows open in full
+  screen. Toggle in **Settings → General → Other**. *On by default.*
+- **Friendlier permission flow** — selecting *Input source 1* prompts for the
+  *Input Monitoring* permission instead of failing silently.
+- **Distinct identity** — name **WaveDesk**, bundle id `com.modin.rustdesk`, its own
+  icon, signed with **Developer ID: MODIN COMPANY** and notarized. macOS permissions
+  are independent of RustDesk, but **your peers / IDs / settings are shared**.
+
+### ⬇️ Install (macOS, Apple Silicon)
+
+1. Download the latest **`wavedesk-<version>-arm64.dmg`** from
+   **[Releases](https://github.com/withwave/WaveDesk/releases)**.
+2. Open the DMG and drag **WaveDesk.app** to **Applications**.
+3. Launch WaveDesk. On first use, grant the permissions it asks for in
+   **System Settings → Privacy & Security**:
+   - **Input Monitoring** and **Accessibility** — required to control a remote machine
+     with keyboard/mouse and to use *Input source 1* (e.g. `Ctrl + Arrow`).
+   - **Screen Recording** — required to share/access your own screen.
+   - These are granted to **“WaveDesk”** and persist across updates.
+4. (Optional) Re‑launch after granting permissions so they take effect.
+
+> Already use RustDesk on this Mac? WaveDesk installs alongside it and **shares the
+> same connection settings** (peer list, IDs, passwords), so there's nothing to migrate.
+
+### 🔧 Build from source
+
+See **[WAVEDESK.md](WAVEDESK.md)** (build & sign) and the upstream build steps below.
+To re‑apply the fork onto a fresh upstream checkout:
+
+```bash
+./scripts/apply-wavedesk.sh   # applies patches/wavedesk.patch
+```
+
+---
+
 <p align="center">
   <img src="res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
   <a href="#raw-steps-to-build">Build</a> •
