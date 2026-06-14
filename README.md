@@ -23,10 +23,14 @@ builds — while **sharing connection settings** with an installed RustDesk on t
   icon, signed with **Developer ID: MODIN COMPANY** and notarized. macOS permissions
   are independent of RustDesk, but **your peers / IDs / settings are shared**.
 
-### ⬇️ Install (macOS, Apple Silicon)
+### ⬇️ Install (macOS)
 
-1. Download the latest **`wavedesk-<version>-arm64.dmg`** from
-   **[Releases](https://github.com/withwave/WaveDesk/releases)**.
+1. Download from **[Releases](https://github.com/withwave/WaveDesk/releases)**:
+   - **`wavedesk-<version>-universal.dmg`** — runs on both **Intel** and
+     **Apple Silicon** Macs (recommended).
+   - `wavedesk-<version>-arm64.dmg` — Apple Silicon only (smaller; hardware codec).
+   - *(The arm64 build includes hardware video codec; the universal build's Intel
+     slice uses software codecs.)*
 2. Open the DMG and drag **WaveDesk.app** to **Applications**.
 3. Launch WaveDesk. On first use, grant the permissions it asks for in
    **System Settings → Privacy & Security**:
