@@ -570,6 +570,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Swap control-command key", "Control 및 Command 키 교체"),
         ("swap-left-right-mouse", "마우스 왼쪽 버튼과 오른쪽 버튼 교체"),
         ("Pass Ctrl+Arrow to local (Mission Control)", "Ctrl+화살표를 로컬로 전달 (미션 컨트롤)"),
+        ("Pass desktop-switch shortcut to local", "데스크탑 전환 단축키를 로컬로 전달 (Win+Ctrl+화살표 / Win+Tab)"),
         ("Always start remote session in full screen", "원격 세션을 항상 전체 화면으로 시작"),
         ("2FA code", "이중 인증 코드"),
         ("More", "더 많은"),

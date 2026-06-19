@@ -13,11 +13,14 @@ fresh upstream checkout with `scripts/apply-wavedesk.sh`.
 
 ## Features
 
-### 1. macOS `Ctrl + Arrow` local passthrough
-While controlling a remote host, the macOS keyboard hook normally forwards every
-keystroke to the remote, so the local Mac's Mission Control / Spaces shortcuts
-(`Ctrl + ←/→/↑/↓`) stop working. This feature optionally passes `Ctrl + Arrow`
-to the **local** OS instead.
+### 1. Local desktop-switch passthrough (macOS + Windows)
+While controlling a remote host, the keyboard hook normally forwards every
+keystroke to the remote, so the **local** machine's "switch desktop" shortcuts
+stop working. This feature optionally passes those shortcuts to the local OS
+instead:
+
+- **macOS:** `Ctrl + ←/→/↑/↓` → Mission Control / Spaces.
+- **Windows:** `Win + Ctrl + ←/→` → virtual desktops, `Win + Tab` → Task View.
 
 - Toggle: remote session toolbar → keyboard menu → **"Pass Ctrl+Arrow to local
   (Mission Control)"**. Off by default.
@@ -39,7 +42,9 @@ adjustable sensitivity.
   (10–300%, default 100%). Higher = more scroll per physical wheel movement.
 - **Saved per connection** in the peer's flutter options
   (`sessionGetFlutterOption` / `sessionSetFlutterOption`, key `wheel-speed`), so
-  each remote machine keeps its own setting. macOS local client only.
+  each remote machine keeps its own setting. macOS uses a delta accumulator;
+  Windows scales the discrete wheel ticks by the same percentage (default 100%
+  leaves upstream behavior unchanged).
 - Implemented in `flutter/lib/models/input_model.dart`
   (`onPointerSignalImage`, `updateWheelSpeed` / `setWheelSpeed`).
 

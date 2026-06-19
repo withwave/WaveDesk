@@ -473,6 +473,10 @@ class InputModel {
   double get _wheelStepMacOS =>
       _kWheelBaseStepMacOS * 100.0 / _wheelSpeed.clamp(kMinWheelSpeed, kMaxWheelSpeed);
   int get wheelSpeed => _wheelSpeed;
+  // Windows wheel sensitivity accumulators (scale the discrete ticks; default
+  // 100% leaves the upstream behavior unchanged).
+  double _winWheelAccX = 0;
+  double _winWheelAccY = 0;
 
   // Relative mouse mode (for games/3D apps).
   final relativeMouseMode = false.obs;
@@ -1726,6 +1730,22 @@ class InputModel {
         dy = -accel;
       } else if (dy < 0) {
         dy = accel;
+      }
+      // Windows: scale the discrete wheel ticks by the per-connection
+      // sensitivity, accumulating the fractional remainder.
+      if (isWindows && _wheelSpeed != kDefaultWheelSpeed) {
+        final f = _wheelSpeed / 100.0;
+        if (dx != 0) {
+          _winWheelAccX += dx * f;
+          dx = _winWheelAccX.truncate();
+          _winWheelAccX -= dx;
+        }
+        if (dy != 0) {
+          _winWheelAccY += dy * f;
+          dy = _winWheelAccY.truncate();
+          _winWheelAccY -= dy;
+        }
+        if (dx == 0 && dy == 0) return;
       }
       bind.sessionSendMouse(
           sessionId: sessionId,

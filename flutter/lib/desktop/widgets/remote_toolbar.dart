@@ -2276,8 +2276,8 @@ class _KeyboardMenu extends StatelessWidget {
           ffi: ffi,
         );
         speedWidgets.add(trackpad);
-        // macOS: per-connection mouse wheel sensitivity.
-        if (isMacOS) {
+        // macOS / Windows: per-connection mouse wheel sensitivity.
+        if (isMacOS || isWindows) {
           speedWidgets.add(MenuButton(
             child:
                 Text(translate('Mouse wheel speed')).paddingOnly(left: 26.0),

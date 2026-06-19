@@ -610,11 +610,13 @@ fn should_block_relative_mouse_shortcut(key: Key, is_press: bool) -> bool {
 }
 
 // Global local option key (must match `kOptionCtrlArrowLocal` in Flutter).
-#[cfg(target_os = "macos")]
+// Passes the local "switch desktop" shortcut to the local OS instead of the
+// remote: `Ctrl + Arrow` on macOS (Mission Control / Spaces), `Win + Ctrl +
+// Arrow` on Windows (virtual desktops).
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 const OPTION_CTRL_ARROW_LOCAL: &str = "allow-ctrl-arrow-local";
 
-// Pass `Ctrl + Arrow` chords to the local macOS so that Mission Control
-// (Spaces switching) keeps working while a remote keyboard hook is active.
+// macOS: `Ctrl + Arrow` held.
 #[cfg(target_os = "macos")]
 #[inline]
 fn is_local_passthrough_chord(key: Key) -> bool {
@@ -629,17 +631,68 @@ fn is_local_passthrough_chord(key: Key) -> bool {
     *m.get(&Key::ControlLeft).unwrap_or(&false) || *m.get(&Key::ControlRight).unwrap_or(&false)
 }
 
-// Whether the user opted in to passing `Ctrl + Arrow` to the local OS.
-// Global local option, off by default ("Y" only when explicitly enabled).
+// Windows: `Win + Ctrl + Arrow` (switch virtual desktop) or `Win + Tab` (Task
+// View) held.
+#[cfg(target_os = "windows")]
+#[inline]
+fn is_local_passthrough_chord(key: Key) -> bool {
+    let m = MODIFIERS_STATE.lock().unwrap();
+    let win = *m.get(&Key::MetaLeft).unwrap_or(&false) || *m.get(&Key::MetaRight).unwrap_or(&false);
+    let ctrl =
+        *m.get(&Key::ControlLeft).unwrap_or(&false) || *m.get(&Key::ControlRight).unwrap_or(&false);
+    match key {
+        Key::UpArrow | Key::DownArrow | Key::LeftArrow | Key::RightArrow => win && ctrl,
+        Key::Tab => win,
+        _ => false,
+    }
+}
+
+// Modifier keys that must be passed to BOTH the remote and the local OS so the
+// local desktop-switch chord can form: Ctrl on macOS, Win+Ctrl on Windows.
 #[cfg(target_os = "macos")]
+#[inline]
+fn is_local_passthrough_modifier(key: Key) -> bool {
+    matches!(key, Key::ControlLeft | Key::ControlRight)
+}
+#[cfg(target_os = "windows")]
+#[inline]
+fn is_local_passthrough_modifier(key: Key) -> bool {
+    matches!(
+        key,
+        Key::ControlLeft | Key::ControlRight | Key::MetaLeft | Key::MetaRight
+    )
+}
+
+// Keys that may participate in the passthrough chord (cheap pre-check before the
+// per-keystroke option lookup).
+#[cfg(target_os = "macos")]
+#[inline]
+fn is_local_passthrough_candidate(key: Key) -> bool {
+    matches!(
+        key,
+        Key::UpArrow | Key::DownArrow | Key::LeftArrow | Key::RightArrow
+    ) || is_local_passthrough_modifier(key)
+}
+#[cfg(target_os = "windows")]
+#[inline]
+fn is_local_passthrough_candidate(key: Key) -> bool {
+    matches!(
+        key,
+        Key::UpArrow | Key::DownArrow | Key::LeftArrow | Key::RightArrow | Key::Tab
+    ) || is_local_passthrough_modifier(key)
+}
+
+// Whether the user opted in to passing the desktop-switch chord to the local OS.
+// Global local option, off by default ("Y" only when explicitly enabled).
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 #[inline]
 fn is_ctrl_arrow_local_enabled() -> bool {
     hbb_common::config::LocalConfig::get_option(OPTION_CTRL_ARROW_LOCAL) == "Y"
 }
 
-// Instantly flip the `Ctrl + Arrow` local-passthrough option. Triggered by the
-// `Ctrl + Shift + \` hotkey so users can switch without opening the menu.
-#[cfg(target_os = "macos")]
+// Instantly flip the local-passthrough option. Triggered by the `Ctrl + Shift +
+// \` hotkey so users can switch without opening the menu.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 #[inline]
 fn toggle_ctrl_arrow_local() {
     use hbb_common::config::LocalConfig;
@@ -653,7 +706,7 @@ fn toggle_ctrl_arrow_local() {
 
 // True when the `Ctrl + Shift + \` toggle hotkey is pressed (both a Ctrl and a
 // Shift modifier are held alongside the backslash key).
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 #[inline]
 fn is_ctrl_arrow_toggle_hotkey(key: Key) -> bool {
     if key != Key::BackSlash {
@@ -677,9 +730,9 @@ fn start_grab_loop() {
                 return Some(event);
             }
 
-            // macOS: `Ctrl + Shift + \` instantly toggles the Ctrl+Arrow local
+            // `Ctrl + Shift + \` instantly toggles the local desktop-switch
             // passthrough on/off, then is consumed (not sent to the remote).
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             if is_press
                 && KEYBOARD_HOOKED.load(Ordering::SeqCst)
                 && is_ctrl_arrow_toggle_hotkey(key)
@@ -688,30 +741,23 @@ fn start_grab_loop() {
                 return None;
             }
 
-            // macOS: optionally keep `Ctrl + Arrow` working locally for Mission
-            // Control / Spaces. Off by default; toggled per session from the
-            // remote toolbar's keyboard menu. The session lookup only runs for
-            // Ctrl/Arrow keys to avoid per-keystroke overhead.
-            #[cfg(target_os = "macos")]
+            // Optionally keep the local "switch desktop" shortcut working while a
+            // remote keyboard hook is active: `Ctrl + Arrow` on macOS (Mission
+            // Control / Spaces), `Win + Ctrl + Arrow` / `Win + Tab` on Windows
+            // (virtual desktops / Task View). Off by default; the option lookup
+            // only runs for candidate keys to avoid per-keystroke overhead.
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             if KEYBOARD_HOOKED.load(Ordering::SeqCst)
-                && matches!(
-                    key,
-                    Key::ControlLeft
-                        | Key::ControlRight
-                        | Key::UpArrow
-                        | Key::DownArrow
-                        | Key::LeftArrow
-                        | Key::RightArrow
-                )
+                && is_local_passthrough_candidate(key)
                 && is_ctrl_arrow_local_enabled()
             {
-                // Ctrl is sent to the remote AND passed to the local OS so the
-                // local shortcut chord can form.
-                if matches!(key, Key::ControlLeft | Key::ControlRight) {
+                // The chord modifiers are sent to the remote AND passed to the
+                // local OS so the local shortcut chord can form.
+                if is_local_passthrough_modifier(key) {
                     client::process_event(&get_keyboard_mode(), &event, None);
                     return Some(event);
                 }
-                // Ctrl + Arrow is passed to the local OS only (not the remote).
+                // The chord key (Arrow / Tab) is passed to the local OS only.
                 if is_local_passthrough_chord(key) {
                     return Some(event);
                 }

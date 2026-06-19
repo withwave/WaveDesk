@@ -1153,11 +1153,12 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
         child: Text(translate('Swap control-command key'))));
   }
 
-  // macOS local Mission Control / Spaces passthrough.
-  // When the local machine is macOS, optionally pass `Ctrl + Arrow` to the
-  // local OS (for Spaces switching) instead of sending it to the remote.
-  // Global local option (read directly by the grab loop in src/keyboard.rs).
-  if (isMacOS && ffiModel.keyboard) {
+  // Local "switch desktop" shortcut passthrough.
+  // Optionally pass the OS desktop-switch shortcut to the LOCAL machine instead
+  // of the remote: `Ctrl + Arrow` on macOS (Mission Control / Spaces),
+  // `Win + Ctrl + Arrow` / `Win + Tab` on Windows (virtual desktops / Task
+  // View). Global local option, read by the grab loop in src/keyboard.rs.
+  if ((isMacOS || isWindows) && ffiModel.keyboard) {
     final option = kOptionCtrlArrowLocal;
     final value = mainGetLocalBoolOptionSync(option);
     onChanged(bool? value) async {
@@ -1166,11 +1167,11 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
           key: option, value: bool2option(option, value));
     }
 
+    final label = isMacOS
+        ? '${translate('Pass Ctrl+Arrow to local (Mission Control)')}  (⌃⇧\\)'
+        : '${translate('Pass desktop-switch shortcut to local')}  (Ctrl+Shift+\\)';
     v.add(TToggleMenu(
-        value: value,
-        onChanged: onChanged,
-        child: Text(
-            '${translate('Pass Ctrl+Arrow to local (Mission Control)')}  (⌃⇧\\)')));
+        value: value, onChanged: onChanged, child: Text(label)));
   }
 
   // Relative mouse mode (gaming mode).

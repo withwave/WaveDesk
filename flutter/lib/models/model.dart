@@ -3764,7 +3764,7 @@ class FFI {
 
     if (isDesktop) {
       inputModel.updateTrackpadSpeed();
-      if (isMacOS) {
+      if (isMacOS || isWindows) {
         inputModel.updateWheelSpeed();
       }
     }
