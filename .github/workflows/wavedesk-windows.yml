@@ -17,6 +17,9 @@ env:
   CARGO_EXPAND_VERSION: "1.0.95"
   VCPKG_DISABLE_METRICS: 1
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-2022
@@ -96,18 +99,35 @@ jobs:
           python3 ./build.py --portable --hwcodec --flutter --vram --skip-portable-pack
           ls -la ./flutter/build/windows/x64/runner/Release
 
-      - name: Package portable zip
+      - name: Package portable zip + self-extracting installer
         shell: bash
         run: |
           VER=$(grep '^version' Cargo.toml | head -1 | sed -E 's/.*"(.*)".*/\1/')
-          OUT="wavedesk-${VER}-x64-portable"
-          mv ./flutter/build/windows/x64/runner/Release "./${OUT}"
-          7z a -tzip "${OUT}.zip" "./${OUT}"
-          ls -la "${OUT}.zip"
-          echo "ASSET=${OUT}.zip" >> "$GITHUB_ENV"
+          # Move the build output to ./rustdesk (the exe inside is rustdesk.exe).
+          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+          # Portable zip.
+          ZIP="wavedesk-${VER}-x64-portable.zip"
+          7z a -tzip "$ZIP" ./rustdesk
+          # Self-extracting installer (rustdesk-portable-packer).
+          ( cd libs/portable && pip3 install -r requirements.txt && \
+            python3 ./generate.py -f ../../rustdesk -o . -e ../../rustdesk/rustdesk.exe )
+          INSTALLER="wavedesk-${VER}-x64-install.exe"
+          mv ./target/release/rustdesk-portable-packer.exe "$INSTALLER"
+          ls -la "$ZIP" "$INSTALLER"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "INSTALLER=$INSTALLER" >> "$GITHUB_ENV"
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wavedesk-windows-portable
-          path: ${{ env.ASSET }}
+          name: wavedesk-windows
+          path: |
+            ${{ env.ZIP }}
+            ${{ env.INSTALLER }}
+
+      - name: Attach to release v1.4.7-modin
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v1.4.7-modin "$INSTALLER" "$ZIP" --clobber --repo "${{ github.repository }}"
