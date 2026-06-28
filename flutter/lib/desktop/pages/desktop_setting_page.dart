@@ -2478,6 +2478,15 @@ class _AboutState extends State<_About> {
                     'WaveDesk 1.4.8.1 - github.com/withwave/WaveDesk',
                     style: linkStyle,
                   ).marginSymmetric(vertical: 4.0)),
+              // AGPL-3.0: offer the complete corresponding source to users.
+              InkWell(
+                  onTap: () {
+                    launchUrlString('https://github.com/withwave/WaveDesk');
+                  },
+                  child: Text(
+                    'Source code (AGPL-3.0)',
+                    style: linkStyle,
+                  ).marginSymmetric(vertical: 4.0)),
               Container(
                 decoration: const BoxDecoration(color: Color(0xFF2c8cff)),
                 padding:

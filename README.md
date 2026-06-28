@@ -55,6 +55,14 @@ To re‑apply the fork onto a fresh upstream checkout:
 ./scripts/apply-wavedesk.sh   # applies patches/wavedesk.patch
 ```
 
+### 📄 License
+
+WaveDesk is a modified version of **RustDesk** and, like RustDesk, is licensed under the
+**[GNU Affero General Public License v3.0](LICENCE)**. Copyright © RustDesk contributors
+(Purslane Ltd.); WaveDesk modifications © MODIN COMPANY. The complete corresponding source
+— including all fork changes — is published in this repository, as AGPL‑3.0 requires for
+both distributed binaries and network (remote-control) use.
+
 ---
 
 <p align="center">

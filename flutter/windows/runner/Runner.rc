@@ -93,7 +93,7 @@ BEGIN
             VALUE "FileDescription", "WaveDesk Remote Desktop" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "wavedesk" "\0"
-            VALUE "LegalCopyright", "Copyright © 2025 MODIN COMPANY. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright © RustDesk contributors (Purslane Ltd.); WaveDesk modifications © 2025 MODIN COMPANY. Licensed under AGPL-3.0." "\0"
             VALUE "OriginalFilename", "wavedesk.exe" "\0"
             VALUE "ProductName", "WaveDesk" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
