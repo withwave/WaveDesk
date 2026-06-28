@@ -518,7 +518,12 @@ fn unsafe_get_cursor() -> ResultType<Option<u64>> {
         }
         LATEST_SEED = seed;
     }
-    let c = get_cursor_id()?;
+    // `get_cursor_id` does NSCursor/NSImage/NSData msg_sends that return
+    // autoreleased objects. This cursor-change poll runs continuously with no
+    // autorelease pool of its own, so those temporaries leak and accumulate
+    // over a long session. Drain them in a pool -- only the hash (`c.1`) is
+    // used here, so the autoreleased NSCursor `c.0` is not needed afterwards.
+    let c = autoreleasepool(|| get_cursor_id())?;
     Ok(Some(c.1))
 }
 

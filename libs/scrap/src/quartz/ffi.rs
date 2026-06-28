@@ -239,3 +239,29 @@ extern "C" {
     pub fn CFRetain(cf: *const c_void);
     pub fn CFRelease(cf: *const c_void);
 }
+
+// Objective-C runtime autorelease pool. macOS Cocoa/CoreGraphics APIs used for
+// display geometry (e.g. `BackingScaleFactor`, display width/height) return
+// autoreleased objects. The server's display-polling thread has no autorelease
+// pool, so those temporaries are never drained and leak (~448 bytes per
+// display query), growing without bound while a remote session keeps polling
+// displays -> multi-GB after days. Wrap such calls in a pool to drain them.
+#[link(name = "objc", kind = "dylib")]
+extern "C" {
+    fn objc_autoreleasePoolPush() -> *mut c_void;
+    fn objc_autoreleasePoolPop(pool: *mut c_void);
+}
+
+/// Run `f` inside an Objective-C autorelease pool so any autoreleased objects
+/// it creates are released when it returns. Panic-safe (drains on unwind too).
+#[inline]
+pub fn with_autorelease_pool<T>(f: impl FnOnce() -> T) -> T {
+    struct PoolGuard(*mut c_void);
+    impl Drop for PoolGuard {
+        fn drop(&mut self) {
+            unsafe { objc_autoreleasePoolPop(self.0) }
+        }
+    }
+    let _guard = PoolGuard(unsafe { objc_autoreleasePoolPush() });
+    f()
+}
