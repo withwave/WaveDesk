@@ -1342,7 +1342,8 @@ class InputModel {
     }
     if (isPhysicalMouse.value) {
       if (!_relativeMouse.handleRelativeMouseMove(e.localPosition)) {
-        handleMouse(_getMouseEvent(e, _kMouseEventMove), e.position,
+        final canvasPosition = _pointerPositionForRemoteCanvas(e);
+        handleMouse(_getMouseEvent(e, _kMouseEventMove), canvasPosition,
             edgeScroll: useEdgeScroll);
       }
     }
@@ -1583,7 +1584,8 @@ class InputModel {
         _relativeMouse
             .sendRelativeMouseButton(_getMouseEvent(e, _kMouseEventDown));
       } else {
-        handleMouse(_getMouseEvent(e, _kMouseEventDown), e.position);
+        final canvasPosition = _pointerPositionForRemoteCanvas(e);
+        handleMouse(_getMouseEvent(e, _kMouseEventDown), canvasPosition);
       }
     }
   }
@@ -1605,7 +1607,8 @@ class InputModel {
         _relativeMouse
             .sendRelativeMouseButton(_getMouseEvent(e, _kMouseEventUp));
       } else {
-        handleMouse(_getMouseEvent(e, _kMouseEventUp), e.position);
+        final canvasPosition = _pointerPositionForRemoteCanvas(e);
+        handleMouse(_getMouseEvent(e, _kMouseEventUp), canvasPosition);
       }
     }
   }
@@ -1627,10 +1630,38 @@ class InputModel {
     }
     if (isPhysicalMouse.value) {
       if (!_relativeMouse.handleRelativeMouseMove(e.localPosition)) {
-        handleMouse(_getMouseEvent(e, _kMouseEventMove), e.position,
+        final canvasPosition = _pointerPositionForRemoteCanvas(e);
+        handleMouse(_getMouseEvent(e, _kMouseEventMove), canvasPosition,
             edgeScroll: useEdgeScroll);
       }
     }
+  }
+
+  /// Convert pointer coordinates into the visible remote canvas space.
+  ///
+  /// On mobile, the remote page body is wrapped in `SafeArea`, but the pointer
+  /// listener that feeds these events sits outside that subtree. As a result,
+  /// `event.localPosition` still includes the top/left safe-area inset.
+  ///
+  /// When the keyboard-visible path shows `KeyHelpTools`, the remote canvas is
+  /// also shifted downward by `CanvasModel.getAdjustY()`. The downstream mouse
+  /// mapping logic expects coordinates relative to the visible canvas area, so
+  /// we subtract both the mobile safe-area padding and the current canvas
+  /// adjustment before passing the position into mouse mapping.
+  ///
+  /// Desktop and web desktop continue to use the global position directly
+  /// because their pointer mapping is window-based.
+  Offset _pointerPositionForRemoteCanvas(PointerEvent event) {
+    if (isDesktop || isWebDesktop) {
+      return event.position;
+    }
+    final mediaData = MediaQueryData.fromView(
+        WidgetsBinding.instance.platformDispatcher.views.first);
+    final adjustY = parent.target?.canvasModel.getAdjustY() ?? 0.0;
+    return Offset(
+      event.localPosition.dx - mediaData.padding.left,
+      event.localPosition.dy - mediaData.padding.top - adjustY,
+    );
   }
 
   static Future<Rect?> fillRemoteCoordsAndGetCurFrame(
