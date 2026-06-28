@@ -2465,6 +2465,17 @@ class _AboutState extends State<_About> {
                     translate('Website'),
                     style: linkStyle,
                   ).marginSymmetric(vertical: 4.0)),
+              // WaveDesk (MODIN) fork: show the fork version and link to the
+              // releases page so users can grab the latest WaveDesk build.
+              InkWell(
+                  onTap: () {
+                    launchUrlString(
+                        'https://github.com/withwave/WaveDesk/releases');
+                  },
+                  child: Text(
+                    'WaveDesk 1.4.8.1 - github.com/withwave/WaveDesk',
+                    style: linkStyle,
+                  ).marginSymmetric(vertical: 4.0)),
               Container(
                 decoration: const BoxDecoration(color: Color(0xFF2c8cff)),
                 padding:
