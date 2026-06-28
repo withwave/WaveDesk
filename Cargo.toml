@@ -212,6 +212,12 @@ exclude = ["vdi/host", "examples/custom_plugin"]
 [patch.crates-io]
 libxdo-sys = { path = "libs/libxdo-sys-stub" }
 
+# Vendored rdev fork: re-enable the macOS CGEventTap after the system disables
+# it (kCGEventTapDisabledByTimeout/ByUserInput) so the keyboard grab recovers
+# instead of staying dead until the client is restarted (bug #1).
+[patch."https://github.com/rustdesk-org/rdev"]
+rdev = { path = "libs/rdev" }
+
 [package.metadata.winres]
 LegalCopyright = "Copyright © 2025 Purslane Ltd. All rights reserved."
 ProductName = "RustDesk"

@@ -242,6 +242,14 @@ class _RemotePageState extends State<RemotePage>
       // unfocus the primary-focus when the whole window is lost focus,
       // and let OS to handle events instead.
       _rawKeyFocusNode.unfocus();
+    } else if (isMacOS) {
+      // macOS keyboard grab is a global CGEventTap gated only by the mouse
+      // being over the remote image (enterView/leaveView). Switching away
+      // (Cmd+Tab, clicking a local window) without moving the cursor off the
+      // image fires no PointerExit, so without this the grab keeps capturing
+      // keystrokes and sending them to the remote even though a local window
+      // is now focused. Release the grab on blur so local input works.
+      _ffi.inputModel.enterOrLeave(false);
     }
     stateGlobal.isFocused.value = false;
 
@@ -259,6 +267,13 @@ class _RemotePageState extends State<RemotePage>
     // See [onWindowBlur].
     if (isWindows) {
       _isWindowBlur = false;
+    } else if (isMacOS) {
+      // Re-grab when focus returns if the cursor is still over the remote
+      // image. No PointerEnter fires in that case (the cursor never moved),
+      // so enterView would not re-engage the grab on its own.
+      if (_cursorOverImage.value) {
+        _ffi.inputModel.enterOrLeave(true);
+      }
     }
     stateGlobal.isFocused.value = true;
 
