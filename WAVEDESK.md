@@ -67,6 +67,61 @@ a separately-signed fork that doesn't inherit upstream's permission grant.
 
 ---
 
+## Bug fixes (vs upstream)
+
+These fix long-standing macOS issues that also affect upstream RustDesk. Each
+was diagnosed to root cause and verified, not worked around.
+
+### #1 — Keyboard input dead after reconnecting
+- **Symptom:** occasionally, after entering / reconnecting to a remote session,
+  the keyboard stops reaching the remote — **the mouse still works** — and only
+  quitting and restarting the client recovers it.
+- **Root cause:** macOS disables an active `CGEventTap` when its callback runs
+  past the system timeout (`kCGEventTapDisabledByTimeout`, e.g. during the busy
+  reconnect). rdev never handled that event, and the grab loop creates the tap
+  **once per process**, so a disabled tap stayed dead until restart. The mouse
+  keeps working because mouse → remote uses Flutter's separate pointer path, not
+  the keyboard tap.
+- **Fix:** vendored rdev (`libs/rdev`, pinned upstream commit `f9b60b1`) — its
+  macOS `raw_callback` now detects `kCGEventTapDisabledBy*` and re-enables the
+  tap with `CGEventTapEnable(tap, true)`. Wired in via a Cargo
+  `[patch."https://github.com/rustdesk-org/rdev"]`.
+
+### #2 — Keyboard not released to the local Mac on focus loss
+- **Symptom:** while typing to the remote, switching to a **local** Mac window
+  (Cmd+Tab, clicking another window) keeps sending keystrokes to the remote —
+  you cannot type into the local window.
+- **Root cause:** on macOS the keyboard grab is gated **only by the mouse
+  pointer being over the remote image** (`enterView` / `leaveView`); upstream
+  released it on `onWindowBlur` for Windows only (the focus path was disabled
+  for non-Windows due to a Linux rdev issue). The global `CGEventTap` keeps
+  capturing keys regardless of which app has focus.
+- **Fix:** `flutter/lib/desktop/pages/remote_page.dart` — on macOS, release the
+  grab in `onWindowBlur` (`enterOrLeave(false)`) and re-grab in `onWindowFocus`
+  when the cursor is still over the image. Scoped to macOS; Linux keeps the
+  pointer-only behavior.
+
+### Server-side memory leak while being controlled
+- **Symptom:** when this Mac is **controlled** (server role), memory grows
+  steadily — past 2 GB after about a week. `ps` RSS looks small because most of
+  the leak is swapped out; the real `phys_footprint` is the leak.
+- **Root cause:** the server polls the displays and the cursor **continuously**
+  (`server::display_service::check_update_displays`, cursor-change detection).
+  Those polls call Cocoa / CoreGraphics APIs (`BackingScaleFactor`, display
+  geometry, `NSCursor` / `NSImage` / `TIFFRepresentation`) that return
+  **autoreleased** objects, but the polling threads have **no autorelease
+  pool**, so the temporaries are never drained and accumulate forever
+  (~448 bytes per display query).
+- **Fix:** wrap the macOS display / cursor query paths in an autorelease pool —
+  `libs/scrap/src/quartz/{ffi.rs,display.rs}` (`Display::scale/width/height`, via
+  the objc runtime `objc_autoreleasePoolPush/Pop`, no new dependency) and
+  `src/platform/macos.rs` (`unsafe_get_cursor`'s `get_cursor_id` call).
+- **Verified** with `MallocStackLogging` + `malloc_history`: the leaking path
+  grew **+468 live allocations per connect/disconnect cycle** before the fix and
+  **0** after; footprint stays flat.
+
+---
+
 ## Branding & identity
 
 | Aspect | Upstream | WaveDesk |
@@ -101,7 +156,10 @@ Key design points:
   toggle hotkey; input-source prompt.
 - `flutter/lib/common.dart` — start-in-fullscreen; `getWindowName()` → "WaveDesk".
 - `flutter/lib/common/widgets/toolbar.dart` — Ctrl+Arrow keyboard-menu toggle.
-- `flutter/lib/desktop/pages/desktop_setting_page.dart` — fullscreen setting.
+- `flutter/lib/desktop/pages/desktop_setting_page.dart` — fullscreen setting;
+  About page WaveDesk version + releases link.
+- `flutter/lib/desktop/pages/remote_page.dart` — macOS grab release on window
+  focus loss / re-grab on focus (keyboard fix #2).
 - `flutter/lib/models/input_model.dart` — macOS wheel accumulator + sensitivity.
 - `flutter/lib/models/model.dart` — load wheel speed on session attach.
 - `flutter/lib/common/widgets/dialog.dart` — "Mouse wheel speed" dialog.
@@ -113,6 +171,16 @@ Key design points:
 - `flutter/macos/Runner.xcodeproj/project.pbxproj` — bundle id.
 - `flutter/macos/Runner/AppIcon.icns` — WaveDesk icon.
 - `docs/macos-local-passthrough.md` — feature design notes.
+
+Bug-fix changes (see **Bug fixes** above):
+
+- `libs/rdev/` (vendored fork of `rustdesk-org/rdev` @ `f9b60b1`) +
+  `Cargo.toml` `[patch]` — re-enable the macOS `CGEventTap` after the system
+  disables it (keyboard fix #1).
+- `libs/scrap/src/quartz/ffi.rs`, `libs/scrap/src/quartz/display.rs` —
+  autorelease pool around `Display::scale/width/height` (memory-leak fix).
+- `src/platform/macos.rs` — autorelease pool around the cursor-change poll
+  (`unsafe_get_cursor`) (memory-leak fix).
 
 ---
 
