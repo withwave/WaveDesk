@@ -188,17 +188,21 @@ Bug-fix changes (see **Bug fixes** above):
 
 When upstream RustDesk changes, re-apply the fork on a fresh checkout:
 
+The patch's current base is the upstream **`1.4.8`** tag (the fork tracks
+RustDesk 1.4.8). Check out that upstream version first, then apply:
+
 ```bash
-# in a fresh upstream checkout (or after `git reset --hard <upstream>`)
+# in a fresh upstream checkout at the tracked version
+git checkout 1.4.8            # current base; bump when rebasing onto a newer tag
 ./scripts/apply-wavedesk.sh
 ```
 
 The script applies `patches/wavedesk.patch` (a `git diff --binary` of all fork
-changes, including the icon). Regenerate the patch after committing new fork
-changes:
+changes vs the base tag, including the vendored `libs/rdev`, generated bridge
+files, and the icon). Regenerate the patch after committing new fork changes:
 
 ```bash
-git diff --binary <upstream-base>..HEAD > patches/wavedesk.patch
+git diff --binary 1.4.8..HEAD > patches/wavedesk.patch   # <base-tag>..HEAD
 ```
 
 ---
