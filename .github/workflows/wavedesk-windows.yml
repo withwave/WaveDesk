@@ -102,16 +102,18 @@ jobs:
       - name: Package portable zip + self-extracting installer
         shell: bash
         run: |
-          VER=$(grep '^version' Cargo.toml | head -1 | sed -E 's/.*"(.*)".*/\1/')
+          # Display/release version label (Cargo version stays 3-part semver
+          # 1.4.8; the fork revision is 1.4.8.1). Filenames end with modin.kr.
+          REL="1.4.8.1"
           # Move the build output to ./rustdesk (the exe inside is rustdesk.exe).
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
           # Portable zip.
-          ZIP="wavedesk-${VER}-x64-portable.zip"
+          ZIP="wavedesk-${REL}-x64-portable-modin.kr.zip"
           7z a -tzip "$ZIP" ./rustdesk
           # Self-extracting installer (rustdesk-portable-packer).
           ( cd libs/portable && pip3 install -r requirements.txt && \
             python3 ./generate.py -f ../../rustdesk -o . -e ../../rustdesk/rustdesk.exe )
-          INSTALLER="wavedesk-${VER}-x64-install.exe"
+          INSTALLER="wavedesk-${REL}-x64-install-modin.kr.exe"
           mv ./target/release/rustdesk-portable-packer.exe "$INSTALLER"
           ls -la "$ZIP" "$INSTALLER"
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
@@ -125,9 +127,9 @@ jobs:
             ${{ env.ZIP }}
             ${{ env.INSTALLER }}
 
-      - name: Attach to release v1.4.7-modin
+      - name: Attach to release v1.4.8.1-modin
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload v1.4.7-modin "$INSTALLER" "$ZIP" --clobber --repo "${{ github.repository }}"
+          gh release upload v1.4.8.1-modin "$INSTALLER" "$ZIP" --clobber --repo "${{ github.repository }}"
