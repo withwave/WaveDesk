@@ -63,9 +63,12 @@ New remote-desktop windows can start in full screen automatically.
   fires, and macOS silently ignores a `setFullscreen` call issued too early;
   `setFullscreen()` also short-circuits once its cached flag is set, so a plain
   retry is a no-op. `setStartRemoteFullscreen()` therefore polls the real
-  window state (`windowManager.isFullScreen`) and re-applies with `force`
-  (added to `stateGlobal.setFullscreen`) until the window actually enters
-  fullscreen — so it reliably takes effect instead of intermittently failing.
+  window state (`WindowController.isFullScreen` — the `window_manager` channel
+  is not registered in sub windows) and re-applies with `force` (added to
+  `stateGlobal.setFullscreen`; sent as `'force_true'` across windows) until the
+  window actually enters fullscreen. Success is latched right after each apply
+  so a deliberate user exit is not overridden, and on give-up the cached flag
+  is resynced to the real windowed state.
 
 ### 3. Prompt for Input Monitoring on explicit input-source switch
 When the user explicitly selects **Input source 1** (rdev grab), the app now
@@ -196,12 +199,12 @@ Bug-fix changes (see **Bug fixes** above):
 
 When upstream RustDesk changes, re-apply the fork on a fresh checkout:
 
-The patch's current base is the upstream **`1.4.8`** tag (the fork tracks
-RustDesk 1.4.8). Check out that upstream version first, then apply:
+The patch's current base is the upstream **`1.4.9`** tag (the fork tracks
+RustDesk 1.4.9). Check out that upstream version first, then apply:
 
 ```bash
 # in a fresh upstream checkout at the tracked version
-git checkout 1.4.8            # current base; bump when rebasing onto a newer tag
+git checkout 1.4.9            # current base; bump when rebasing onto a newer tag
 ./scripts/apply-wavedesk.sh
 ```
 
@@ -210,7 +213,7 @@ changes vs the base tag, including the vendored `libs/rdev`, generated bridge
 files, and the icon). Regenerate the patch after committing new fork changes:
 
 ```bash
-git diff --binary 1.4.8..HEAD > patches/wavedesk.patch   # <base-tag>..HEAD
+git diff --binary 1.4.9..HEAD > patches/wavedesk.patch   # <base-tag>..HEAD
 ```
 
 ---
