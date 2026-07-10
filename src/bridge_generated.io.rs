@@ -2256,6 +2256,16 @@ pub extern "C" fn wire_main_set_common(
 }
 
 #[no_mangle]
+pub extern "C" fn wire_session_set_common(
+    port_: i64,
+    session_id: *mut wire_uint_8_list,
+    key: *mut wire_uint_8_list,
+    value: *mut wire_uint_8_list,
+) {
+    wire_session_set_common_impl(port_, session_id, key, value)
+}
+
+#[no_mangle]
 pub extern "C" fn wire_session_get_common_sync(
     session_id: *mut wire_uint_8_list,
     key: *mut wire_uint_8_list,

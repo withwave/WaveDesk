@@ -5103,6 +5103,26 @@ fn wire_main_set_common_impl(
         },
     )
 }
+fn wire_session_set_common_impl(
+    port_: MessagePort,
+    session_id: impl Wire2Api<uuid::Uuid> + UnwindSafe,
+    key: impl Wire2Api<String> + UnwindSafe,
+    value: impl Wire2Api<String> + UnwindSafe,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap::<_, _, _, ()>(
+        WrapInfo {
+            debug_name: "session_set_common",
+            port: Some(port_),
+            mode: FfiCallMode::Normal,
+        },
+        move || {
+            let api_session_id = session_id.wire2api();
+            let api_key = key.wire2api();
+            let api_value = value.wire2api();
+            move |task_callback| Ok(session_set_common(api_session_id, api_key, api_value))
+        },
+    )
+}
 fn wire_session_get_common_sync_impl(
     session_id: impl Wire2Api<uuid::Uuid> + UnwindSafe,
     key: impl Wire2Api<String> + UnwindSafe,

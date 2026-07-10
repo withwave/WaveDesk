@@ -78,6 +78,9 @@ class _$EventToUICopyWithImpl<$Res, $Val extends EventToUI>
   final $Val _value;
   // ignore: unused_field
   final $Res Function($Val) _then;
+
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -97,6 +100,8 @@ class __$$EventToUI_EventImplCopyWithImpl<$Res>
       _$EventToUI_EventImpl _value, $Res Function(_$EventToUI_EventImpl) _then)
       : super(_value, _then);
 
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -135,7 +140,9 @@ class _$EventToUI_EventImpl implements EventToUI_Event {
   @override
   int get hashCode => Object.hash(runtimeType, field0);
 
-  @JsonKey(ignore: true)
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   @pragma('vm:prefer-inline')
   _$$EventToUI_EventImplCopyWith<_$EventToUI_EventImpl> get copyWith =>
@@ -216,7 +223,10 @@ abstract class EventToUI_Event implements EventToUI {
 
   @override
   String get field0;
-  @JsonKey(ignore: true)
+
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   _$$EventToUI_EventImplCopyWith<_$EventToUI_EventImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -238,6 +248,8 @@ class __$$EventToUI_RgbaImplCopyWithImpl<$Res>
       _$EventToUI_RgbaImpl _value, $Res Function(_$EventToUI_RgbaImpl) _then)
       : super(_value, _then);
 
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -276,7 +288,9 @@ class _$EventToUI_RgbaImpl implements EventToUI_Rgba {
   @override
   int get hashCode => Object.hash(runtimeType, field0);
 
-  @JsonKey(ignore: true)
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   @pragma('vm:prefer-inline')
   _$$EventToUI_RgbaImplCopyWith<_$EventToUI_RgbaImpl> get copyWith =>
@@ -357,7 +371,10 @@ abstract class EventToUI_Rgba implements EventToUI {
 
   @override
   int get field0;
-  @JsonKey(ignore: true)
+
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   _$$EventToUI_RgbaImplCopyWith<_$EventToUI_RgbaImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -379,6 +396,8 @@ class __$$EventToUI_TextureImplCopyWithImpl<$Res>
       $Res Function(_$EventToUI_TextureImpl) _then)
       : super(_value, _then);
 
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -425,7 +444,9 @@ class _$EventToUI_TextureImpl implements EventToUI_Texture {
   @override
   int get hashCode => Object.hash(runtimeType, field0, field1);
 
-  @JsonKey(ignore: true)
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   @pragma('vm:prefer-inline')
   _$$EventToUI_TextureImplCopyWith<_$EventToUI_TextureImpl> get copyWith =>
@@ -508,7 +529,10 @@ abstract class EventToUI_Texture implements EventToUI {
   @override
   int get field0;
   bool get field1;
-  @JsonKey(ignore: true)
+
+  /// Create a copy of EventToUI
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   _$$EventToUI_TextureImplCopyWith<_$EventToUI_TextureImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
