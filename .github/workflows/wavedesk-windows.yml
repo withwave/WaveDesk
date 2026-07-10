@@ -103,8 +103,8 @@ jobs:
         shell: bash
         run: |
           # Display/release version label (Cargo version stays 3-part semver
-          # 1.4.8; the fork revision is 1.4.8.1). Filenames end with modin.kr.
-          REL="1.4.8.1"
+          # 1.4.8; the fork revision is 1.4.8.2). Filenames end with modin.kr.
+          REL="1.4.8.2"
           # Move the build output to ./rustdesk (the exe inside is rustdesk.exe).
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
           # Portable zip.
@@ -127,9 +127,9 @@ jobs:
             ${{ env.ZIP }}
             ${{ env.INSTALLER }}
 
-      - name: Attach to release v1.4.8.1-modin
+      - name: Attach to release v1.4.8.2-modin
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload v1.4.8.1-modin "$INSTALLER" "$ZIP" --clobber --repo "${{ github.repository }}"
+          gh release upload v1.4.8.2-modin "$INSTALLER" "$ZIP" --clobber --repo "${{ github.repository }}"

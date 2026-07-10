@@ -2005,6 +2005,41 @@ Future<Offset?> _adjustRestoreMainWindowOffset(
 /// Note that windowId must be provided if it's subwindow
 //
 // display is used to set the offset of the window in individual display mode.
+// Reliably enter fullscreen for "always start remote session in full screen".
+// A remote sub window may not be on screen yet when the option first fires, and
+// macOS silently ignores a setFullscreen call issued before the window is
+// visible. On top of that, setFullscreen() short-circuits once its cached flag
+// is already true, so a plain retry is a no-op. Retry with `force` until the
+// real OS window reports fullscreen (or we give up after a few seconds).
+// (WaveDesk)
+Future<void> setStartRemoteFullscreen(int windowId) async {
+  final self = kWindowId == windowId;
+  for (int i = 0; i < 12; i++) {
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (self) {
+      bool isFs = false;
+      try {
+        isFs = await windowManager.isFullScreen();
+      } catch (_) {}
+      if (isFs) {
+        // Window is already fullscreen; just sync the cached flag.
+        stateGlobal.setFullscreen(true, procWnd: false);
+        return;
+      }
+      stateGlobal.setFullscreen(true, force: true);
+    } else {
+      final wc = WindowController.fromWindowId(windowId);
+      bool isFs = false;
+      try {
+        isFs = await wc.isFullScreen();
+      } catch (_) {}
+      if (isFs) return;
+      DesktopMultiWindow.invokeMethod(
+          windowId, kWindowEventSetFullscreen, 'true');
+    }
+  }
+}
+
 Future<bool> restoreWindowPosition(WindowType type,
     {int? windowId, String? peerId, int? display}) async {
   if (bind
@@ -2055,14 +2090,7 @@ Future<bool> restoreWindowPosition(WindowType type,
         if (type == WindowType.RemoteDesktop &&
             windowId != null &&
             mainGetLocalBoolOptionSync(kOptionStartRemoteFullscreen)) {
-          Future.delayed(Duration(milliseconds: 300), () async {
-            if (kWindowId == windowId) {
-              stateGlobal.setFullscreen(true);
-            } else {
-              DesktopMultiWindow.invokeMethod(
-                  windowId, kWindowEventSetFullscreen, 'true');
-            }
-          });
+          setStartRemoteFullscreen(windowId);
         }
         break;
     }
@@ -2155,16 +2183,9 @@ Future<bool> restoreWindowPosition(WindowType type,
         if (!isMacOS) {
           await restoreFrame();
         }
-        // An duration is needed to avoid the window being restored after fullscreen.
-        Future.delayed(Duration(milliseconds: 300), () async {
-          if (kWindowId == windowId) {
-            stateGlobal.setFullscreen(true);
-          } else {
-            // If is not current window, we need to send a fullscreen message to `windowId`
-            DesktopMultiWindow.invokeMethod(
-                windowId, kWindowEventSetFullscreen, 'true');
-          }
-        });
+        // A retry loop is needed to avoid the window being restored after
+        // fullscreen and to survive the sub window not being on screen yet.
+        setStartRemoteFullscreen(windowId);
       } else if (lpos.isMaximized == true) {
         await restoreFrame();
         // An duration is needed to avoid the window being restored after maximized.
@@ -3461,10 +3482,8 @@ tryMoveToScreenAndSetFullscreen(Rect? screenRect) async {
     return;
   }
   await wc.setFrame(frame);
-  // An duration is needed to avoid the window being restored after fullscreen.
-  Future.delayed(Duration(milliseconds: 300), () async {
-    stateGlobal.setFullscreen(true);
-  });
+  // A retry loop is needed to avoid the window being restored after fullscreen.
+  setStartRemoteFullscreen(stateGlobal.windowId);
 }
 
 parseParamScreenRect(Map<String, dynamic> params) {

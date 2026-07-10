@@ -76,8 +76,8 @@ class StateGlobal {
 
   setMinimized(bool v) => _isMinimized = v;
 
-  setFullscreen(bool v, {bool procWnd = true}) {
-    if (_fullscreen.value != v) {
+  setFullscreen(bool v, {bool procWnd = true, bool force = false}) {
+    if (_fullscreen.value != v || force) {
       _fullscreen.value = v;
       _showTabBar.value = !_fullscreen.value;
       if (isWebDesktop) {

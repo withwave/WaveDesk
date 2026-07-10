@@ -2475,7 +2475,7 @@ class _AboutState extends State<_About> {
                         'https://github.com/withwave/WaveDesk/releases');
                   },
                   child: Text(
-                    'WaveDesk 1.4.8.1 - github.com/withwave/WaveDesk',
+                    'WaveDesk 1.4.8.2 - github.com/withwave/WaveDesk',
                     style: linkStyle,
                   ).marginSymmetric(vertical: 4.0)),
               // AGPL-3.0: offer the complete corresponding source to users.
