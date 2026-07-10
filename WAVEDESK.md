@@ -54,10 +54,18 @@ New remote-desktop windows can start in full screen automatically.
 - Toggle: **main window** Settings → General → Other → **"Always start remote
   session in full screen"** (next to "Open connection in new tab"). On by
   default.
-- Option `start-remote-fullscreen`. Reuses the existing fullscreen path in
+- Option `start-remote-fullscreen` (default true; `option2bool` treats the
+  unset value as on). Reuses the existing fullscreen path in
   `restoreWindowPosition()` (`flutter/lib/common.dart`) — the same
   `setFullscreen(true)` / `kWindowEventSetFullscreen` the toolbar's "Enter full
   screen" uses.
+- The remote sub window is often not on screen yet when the option first
+  fires, and macOS silently ignores a `setFullscreen` call issued too early;
+  `setFullscreen()` also short-circuits once its cached flag is set, so a plain
+  retry is a no-op. `setStartRemoteFullscreen()` therefore polls the real
+  window state (`windowManager.isFullScreen`) and re-applies with `force`
+  (added to `stateGlobal.setFullscreen`) until the window actually enters
+  fullscreen — so it reliably takes effect instead of intermittently failing.
 
 ### 3. Prompt for Input Monitoring on explicit input-source switch
 When the user explicitly selects **Input source 1** (rdev grab), the app now
