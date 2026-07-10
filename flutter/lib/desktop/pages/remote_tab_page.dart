@@ -550,7 +550,12 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
         }
       }
     } else if (call.method == kWindowEventSetFullscreen) {
-      stateGlobal.setFullscreen(call.arguments == 'true');
+      // 'force_true' re-applies fullscreen to the OS window even when the
+      // cached flag is already true (start-in-fullscreen retry, see
+      // setStartRemoteFullscreen).
+      final force = call.arguments == 'force_true';
+      stateGlobal.setFullscreen(call.arguments == 'true' || force,
+          force: force);
     }
     _update_remote_count();
     return returnValue;

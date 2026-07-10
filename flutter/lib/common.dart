@@ -2012,31 +2012,59 @@ Future<Offset?> _adjustRestoreMainWindowOffset(
 // is already true, so a plain retry is a no-op. Retry with `force` until the
 // real OS window reports fullscreen (or we give up after a few seconds).
 // (WaveDesk)
+final Set<int> _fsRetryInFlight = {};
+
 Future<void> setStartRemoteFullscreen(int windowId) async {
-  final self = kWindowId == windowId;
-  for (int i = 0; i < 12; i++) {
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (self) {
-      bool isFs = false;
+  // restoreWindowPosition can run twice for the same new window (sub window
+  // init + tab page init); one retry loop per window is enough.
+  if (!_fsRetryInFlight.add(windowId)) return;
+  try {
+    final self = kWindowId == windowId;
+    // NOTE: windowManager.isFullScreen() is NOT registered in sub windows
+    // (MissingPluginException); WindowController is the reliable check.
+    Future<bool> isFullscreen() async {
       try {
-        isFs = await windowManager.isFullScreen();
-      } catch (_) {}
-      if (isFs) {
-        // Window is already fullscreen; just sync the cached flag.
-        stateGlobal.setFullscreen(true, procWnd: false);
-        return;
+        return await WindowController.fromWindowId(windowId).isFullScreen();
+      } catch (_) {
+        return false;
       }
-      stateGlobal.setFullscreen(true, force: true);
-    } else {
-      final wc = WindowController.fromWindowId(windowId);
-      bool isFs = false;
-      try {
-        isFs = await wc.isFullScreen();
-      } catch (_) {}
-      if (isFs) return;
-      DesktopMultiWindow.invokeMethod(
-          windowId, kWindowEventSetFullscreen, 'true');
     }
+
+    Future<bool> confirmed() async {
+      if (!await isFullscreen()) return false;
+      if (self) {
+        // Sync the cached flag (tab bar / border) without re-toggling.
+        stateGlobal.setFullscreen(true, procWnd: false);
+      }
+      return true;
+    }
+
+    for (int i = 0; i < 12; i++) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (await confirmed()) return;
+      if (self) {
+        stateGlobal.setFullscreen(true, force: true);
+      } else {
+        // 'force_true' bypasses the receiver's cached-flag short-circuit —
+        // a plain 'true' is a no-op once the first event set the cache.
+        DesktopMultiWindow.invokeMethod(
+            windowId, kWindowEventSetFullscreen, 'force_true');
+      }
+      // Re-check shortly after applying: latch success as early as possible
+      // so a deliberate user exit from fullscreen is not overridden later.
+      await Future.delayed(const Duration(milliseconds: 150));
+      if (await confirmed()) return;
+    }
+    // Gave up: resync the cached flag with the real (windowed) state so the
+    // tab bar / border / toolbar toggle don't end up inverted.
+    if (self) {
+      stateGlobal.setFullscreen(false, procWnd: false);
+    } else {
+      DesktopMultiWindow.invokeMethod(
+          windowId, kWindowEventSetFullscreen, 'false');
+    }
+  } finally {
+    _fsRetryInFlight.remove(windowId);
   }
 }
 
