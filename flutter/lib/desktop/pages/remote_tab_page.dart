@@ -437,12 +437,20 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
       final screenRect = parseParamScreenRect(args);
       final prePeerCount = tabController.length;
       Future.delayed(Duration.zero, () async {
-        if (stateGlobal.fullscreen.isTrue) {
+        // With "always start remote session in full screen" on, keep the
+        // window fullscreen when a session is added to it — upstream exits
+        // fullscreen here to reposition the window, which made sessions start
+        // fullscreen and then drop to windowed moments later. (WaveDesk)
+        final keepFullscreen = stateGlobal.fullscreen.isTrue &&
+            mainGetLocalBoolOptionSync(kOptionStartRemoteFullscreen);
+        if (stateGlobal.fullscreen.isTrue && !keepFullscreen) {
           await WindowController.fromWindowId(windowId()).setFullscreen(false);
           stateGlobal.setFullscreen(false, procWnd: false);
         }
-        await setNewConnectWindowFrame(windowId(), id!, prePeerCount,
-            WindowType.RemoteDesktop, display, screenRect);
+        if (!keepFullscreen) {
+          await setNewConnectWindowFrame(windowId(), id!, prePeerCount,
+              WindowType.RemoteDesktop, display, screenRect);
+        }
         Future.delayed(Duration(milliseconds: isWindows ? 100 : 0), () async {
           await windowOnTop(windowId());
         });
@@ -553,9 +561,14 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
       // 'force_true' re-applies fullscreen to the OS window even when the
       // cached flag is already true (start-in-fullscreen retry, see
       // setStartRemoteFullscreen).
-      final force = call.arguments == 'force_true';
-      stateGlobal.setFullscreen(call.arguments == 'true' || force,
-          force: force);
+      if (call.arguments == 'sync_false') {
+        // Cache-only resync from a retry give-up; must not toggle the window.
+        stateGlobal.setFullscreen(false, procWnd: false);
+      } else {
+        final force = call.arguments == 'force_true';
+        stateGlobal.setFullscreen(call.arguments == 'true' || force,
+            force: force);
+      }
     }
     _update_remote_count();
     return returnValue;

@@ -103,8 +103,8 @@ jobs:
         shell: bash
         run: |
           # Display/release version label (Cargo version stays 3-part semver
-          # tracks upstream; fork release is 1.4.9). Filenames end with modin.kr.
-          REL="1.4.9"
+          # tracks upstream; fork release is 1.4.9.1). Filenames end with modin.kr.
+          REL="1.4.9.1"
           # Move the build output to ./rustdesk (the exe inside is rustdesk.exe).
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
           # Portable zip.
@@ -119,6 +119,27 @@ jobs:
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
           echo "INSTALLER=$INSTALLER" >> "$GITHUB_ENV"
 
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+
+      # Proper Windows installer (WiX MSI). --app-name WaveDesk derives a
+      # WaveDesk-specific UpgradeCode (uuid5 of the app name), so it installs
+      # side-by-side with an official RustDesk MSI instead of upgrading it.
+      - name: Build MSI installer
+        shell: pwsh
+        run: |
+          $rel = "1.4.9.1"
+          pushd ./res/msi
+          python preprocess.py --arp -d ../../rustdesk --app-name WaveDesk -m "MODIN COMPANY"
+          nuget restore msi.sln
+          msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
+          $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
+          popd
+          $out = "wavedesk-$rel-x64-modin.kr.msi"
+          Copy-Item $msi.FullName $out
+          Get-FileHash $out
+          echo "MSI=$out" >> $env:GITHUB_ENV
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -126,10 +147,11 @@ jobs:
           path: |
             ${{ env.ZIP }}
             ${{ env.INSTALLER }}
+            ${{ env.MSI }}
 
-      - name: Attach to release v1.4.9-modin
+      - name: Attach to release v1.4.9.1-modin
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload v1.4.9-modin "$INSTALLER" "$ZIP" --clobber --repo "${{ github.repository }}"
+          gh release upload v1.4.9.1-modin "$INSTALLER" "$ZIP" "$MSI" --clobber --repo "${{ github.repository }}"

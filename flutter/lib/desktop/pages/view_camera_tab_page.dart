@@ -516,9 +516,14 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
     } else if (call.method == kWindowEventSetFullscreen) {
       // 'force_true' re-applies fullscreen to the OS window even when the
       // cached flag is already true (start-in-fullscreen retry).
-      final force = call.arguments == 'force_true';
-      stateGlobal.setFullscreen(call.arguments == 'true' || force,
-          force: force);
+      if (call.arguments == 'sync_false') {
+        // Cache-only resync from a retry give-up; must not toggle the window.
+        stateGlobal.setFullscreen(false, procWnd: false);
+      } else {
+        final force = call.arguments == 'force_true';
+        stateGlobal.setFullscreen(call.arguments == 'true' || force,
+            force: force);
+      }
     }
     _update_remote_count();
     return returnValue;

@@ -2065,7 +2065,10 @@ Future<void> setStartRemoteFullscreen(int windowId) async {
       return true;
     }
 
-    for (int i = 0; i < 12; i++) {
+    // ~11s budget: slow GPUs (e.g. Intel UHD 630) serialize fullscreen Space
+    // transitions, so a second window's requests are dropped until the first
+    // window's transition finishes.
+    for (int i = 0; i < 24; i++) {
       await Future.delayed(const Duration(milliseconds: 300));
       if (await confirmed()) return;
       if (self) {
@@ -2081,13 +2084,14 @@ Future<void> setStartRemoteFullscreen(int windowId) async {
       await Future.delayed(const Duration(milliseconds: 150));
       if (await confirmed()) return;
     }
-    // Gave up: resync the cached flag with the real (windowed) state so the
-    // tab bar / border / toolbar toggle don't end up inverted.
+    // Gave up: resync the cached flag with the (presumably windowed) state.
+    // Cache-only ('sync_false') — never touch the OS window here, or a
+    // fullscreen that lands late would be yanked back out.
     if (self) {
       stateGlobal.setFullscreen(false, procWnd: false);
     } else {
       DesktopMultiWindow.invokeMethod(
-          windowId, kWindowEventSetFullscreen, 'false');
+          windowId, kWindowEventSetFullscreen, 'sync_false');
     }
   } finally {
     _fsRetryInFlight.remove(windowId);
