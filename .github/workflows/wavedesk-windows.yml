@@ -129,10 +129,16 @@ jobs:
         shell: pwsh
         run: |
           $rel = "1.4.9.1"
+          # preprocess.py expects <app-name>.exe in the dist dir (it reads the
+          # version resource from it and harvests components around it).
+          Rename-Item ./rustdesk/rustdesk.exe WaveDesk.exe
           pushd ./res/msi
           python preprocess.py --arp -d ../../rustdesk --app-name WaveDesk -m "MODIN COMPANY"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           nuget restore msi.sln
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
           popd
           $out = "wavedesk-$rel-x64-modin.kr.msi"
