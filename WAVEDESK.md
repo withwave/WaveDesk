@@ -93,24 +93,28 @@ was diagnosed to root cause and verified, not worked around.
   **once per process**, so a disabled tap stayed dead until restart. The mouse
   keeps working because mouse → remote uses Flutter's separate pointer path, not
   the keyboard tap.
-- **Fix:** vendored rdev (`libs/rdev`, pinned upstream commit `f9b60b1`) — its
+- **Fix:** vendored rdev (`libs/rdev`, pinned upstream commit `23e24dd6`) — its
   macOS `raw_callback` now detects `kCGEventTapDisabledBy*` and re-enables the
   tap with `CGEventTapEnable(tap, true)`. Wired in via a Cargo
   `[patch."https://github.com/rustdesk-org/rdev"]`.
 
-### #2 — Keyboard not released to the local Mac on focus loss
+### #2 — Keyboard not released to the local Mac on focus loss (now upstream)
 - **Symptom:** while typing to the remote, switching to a **local** Mac window
   (Cmd+Tab, clicking another window) keeps sending keystrokes to the remote —
   you cannot type into the local window.
-- **Root cause:** on macOS the keyboard grab is gated **only by the mouse
-  pointer being over the remote image** (`enterView` / `leaveView`); upstream
-  released it on `onWindowBlur` for Windows only (the focus path was disabled
-  for non-Windows due to a Linux rdev issue). The global `CGEventTap` keeps
-  capturing keys regardless of which app has focus.
-- **Fix:** `flutter/lib/desktop/pages/remote_page.dart` — on macOS, release the
-  grab in `onWindowBlur` (`enterOrLeave(false)`) and re-grab in `onWindowFocus`
-  when the cursor is still over the image. Scoped to macOS; Linux keeps the
-  pointer-only behavior.
+- **Root cause:** on macOS the keyboard grab was gated **only by the mouse
+  pointer being over the remote image** (`enterView` / `leaveView`); the global
+  `CGEventTap` keeps capturing keys regardless of which app has focus. With the
+  Flutter input source (Input source 2) the same hole existed in the key focus
+  node, which was never released on blur.
+- **Status:** the fork carried a local fix (release the grab in `onWindowBlur`)
+  until upstream landed a comprehensive one in
+  `eefd22b20 fix(macos): prevent remote keyboard focus leaks` (#15629):
+  `_syncMacOSKeyboardGrab()` gates the grab on window / tab / lifecycle /
+  primary-focus state, handles fullscreen Space switches and relative mouse
+  mode, and drops the key focus node when input should not be active. The
+  fork's own fix was **removed** in favour of it — calling `enterOrLeave()`
+  outside that state machine desyncs its `_macOSInputActive` bookkeeping.
 
 ### Server-side memory leak while being controlled
 - **Symptom:** when this Mac is **controlled** (server role), memory grows
@@ -185,7 +189,7 @@ Key design points:
 
 Bug-fix changes (see **Bug fixes** above):
 
-- `libs/rdev/` (vendored fork of `rustdesk-org/rdev` @ `f9b60b1`) +
+- `libs/rdev/` (vendored fork of `rustdesk-org/rdev` @ `23e24dd6`) +
   `Cargo.toml` `[patch]` — re-enable the macOS `CGEventTap` after the system
   disables it (keyboard fix #1).
 - `libs/scrap/src/quartz/ffi.rs`, `libs/scrap/src/quartz/display.rs` —
@@ -199,12 +203,13 @@ Bug-fix changes (see **Bug fixes** above):
 
 When upstream RustDesk changes, re-apply the fork on a fresh checkout:
 
-The patch's current base is the upstream **`1.4.9`** tag (the fork tracks
-RustDesk 1.4.9). Check out that upstream version first, then apply:
+The patch's current base is upstream **`630b53110`** on `master` (post-1.4.9).
+The fork moved off the release tag to pick up upstream's macOS keyboard-focus
+fix (#15629), which is not in any tagged release yet. Check out that upstream version first, then apply:
 
 ```bash
 # in a fresh upstream checkout at the tracked version
-git checkout 1.4.9            # current base; bump when rebasing onto a newer tag
+git checkout 630b53110        # current base; bump when rebasing onto a newer tag
 ./scripts/apply-wavedesk.sh
 ```
 
@@ -213,7 +218,7 @@ changes vs the base tag, including the vendored `libs/rdev`, generated bridge
 files, and the icon). Regenerate the patch after committing new fork changes:
 
 ```bash
-git diff --binary 1.4.9..HEAD > patches/wavedesk.patch   # <base-tag>..HEAD
+git diff --binary 630b53110..HEAD > patches/wavedesk.patch   # <base-tag>..HEAD
 ```
 
 ---
