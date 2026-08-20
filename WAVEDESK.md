@@ -116,6 +116,26 @@ was diagnosed to root cause and verified, not worked around.
   fork's own fix was **removed** in favour of it — calling `enterOrLeave()`
   outside that state machine desyncs its `_macOSInputActive` bookkeeping.
 
+### #3 — Input source silently downgraded to 2 (and never restored)
+- **Symptom:** the keyboard grab stops working with no visible cause — the
+  Ctrl+Arrow passthrough toggle does nothing, and `Ctrl+Arrow` always triggers
+  the **local** Mission Control even with the option off (nothing intercepts
+  the shortcut any more). Restarting does not help; only manually switching
+  the input source back to 1 does.
+- **Root cause:** `init_input_source()` checked macOS Input Monitoring at
+  startup and, when it was missing, **wrote `Input source 2` into the config**
+  and returned. That is persistent: once written it survives restarts, so the
+  grab stayed disabled even after the permission came back — e.g. after the
+  app bundle was replaced by an update, which makes macOS re-evaluate the
+  Input Monitoring grant.
+- **Fix:** `src/keyboard.rs` — keep the user's configured source in the config
+  and fall back **in memory only** (`GRAB_UNAVAILABLE`) for that run;
+  `get_cur_session_input_source()` re-checks the permission and restores the
+  grab (`IS_RDEV_ENABLED` + `start_grab_loop()`) by itself once it is granted.
+- The toolbar toggle is also shown **disabled with "Requires Input source 1"**
+  when the Flutter input source is active, instead of a switch that silently
+  does nothing.
+
 ### Server-side memory leak while being controlled
 - **Symptom:** when this Mac is **controlled** (server role), memory grows
   steadily — past 2 GB after about a week. `ps` RSS looks small because most of

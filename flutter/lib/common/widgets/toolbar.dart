@@ -1178,17 +1178,27 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
   if ((isMacOS || isWindows) && ffiModel.keyboard) {
     final option = kOptionCtrlArrowLocal;
     final value = mainGetLocalBoolOptionSync(option);
+    // The passthrough is implemented in the rdev grab loop, so it only does
+    // anything with Input source 1. With the Flutter input source there is no
+    // global hook and the OS always handles the shortcut locally — show the
+    // item disabled with the reason instead of a toggle that changes nothing.
+    final grabActive = !isInputSourceFlutter;
     onChanged(bool? value) async {
       if (value == null) return;
       await bind.mainSetLocalOption(
           key: option, value: bool2option(option, value));
     }
 
-    final label = isMacOS
+    var label = isMacOS
         ? '${translate('Pass Ctrl+Arrow to local (Mission Control)')}  (⌃⇧\\)'
         : '${translate('Pass desktop-switch shortcut to local')}  (Ctrl+Shift+\\)';
+    if (!grabActive) {
+      label = '$label  —  ${translate('Requires Input source 1')}';
+    }
     v.add(TToggleMenu(
-        value: value, onChanged: onChanged, child: Text(label)));
+        value: value && grabActive,
+        onChanged: grabActive ? onChanged : null,
+        child: Text(label)));
   }
 
   // Relative mouse mode (gaming mode).

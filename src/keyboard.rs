@@ -1702,6 +1702,16 @@ pub mod input_source {
 
     pub const CONFIG_INPUT_SOURCE_DEFAULT: &str = CONFIG_INPUT_SOURCE_1;
 
+    // WaveDesk: set while macOS Input Monitoring is missing, so the grab is
+    // bypassed for this run only. Upstream instead wrote "Input source 2" into
+    // the config here, which permanently disabled the rdev grab — the setting
+    // never returned to source 1 even after the permission came back (e.g.
+    // after the app bundle was replaced), silently killing Ctrl+Arrow
+    // passthrough and grab-based key handling until the user noticed.
+    #[cfg(target_os = "macos")]
+    static GRAB_UNAVAILABLE: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
+
     pub fn init_input_source() {
         #[cfg(target_os = "linux")]
         if !crate::platform::linux::is_x11() {
@@ -1711,13 +1721,15 @@ pub mod input_source {
         }
         #[cfg(target_os = "macos")]
         if !crate::platform::macos::is_can_input_monitoring(false) {
-            log::error!("init_input_source, is_can_input_monitoring() false");
-            set_local_option(
-                CONFIG_OPTION_INPUT_SOURCE.to_string(),
-                CONFIG_INPUT_SOURCE_2.to_string(),
+            log::error!(
+                "init_input_source, is_can_input_monitoring() false; \
+                 falling back to the Flutter input source for this run only"
             );
+            GRAB_UNAVAILABLE.store(true, super::Ordering::SeqCst);
             return;
         }
+        #[cfg(target_os = "macos")]
+        GRAB_UNAVAILABLE.store(false, super::Ordering::SeqCst);
         let cur_input_source = get_cur_session_input_source();
         if cur_input_source == CONFIG_INPUT_SOURCE_1 {
             super::IS_RDEV_ENABLED.store(true, super::Ordering::SeqCst);
@@ -1759,11 +1771,27 @@ pub mod input_source {
             return CONFIG_INPUT_SOURCE_2.to_string();
         }
         let input_source = get_local_option(CONFIG_OPTION_INPUT_SOURCE.to_string());
-        if input_source.is_empty() {
+        let input_source = if input_source.is_empty() {
             CONFIG_INPUT_SOURCE_DEFAULT.to_string()
         } else {
             input_source
+        };
+        // WaveDesk: honour the user's configured source, but report the Flutter
+        // source while Input Monitoring is missing. Re-check on the way so the
+        // grab recovers by itself once the permission is granted, instead of
+        // requiring the user to toggle the setting manually.
+        #[cfg(target_os = "macos")]
+        if input_source == CONFIG_INPUT_SOURCE_1 && GRAB_UNAVAILABLE.load(super::Ordering::SeqCst) {
+            if crate::platform::macos::is_can_input_monitoring(false) {
+                log::info!("Input Monitoring granted; restoring the rdev grab");
+                GRAB_UNAVAILABLE.store(false, super::Ordering::SeqCst);
+                super::IS_RDEV_ENABLED.store(true, super::Ordering::SeqCst);
+                super::client::start_grab_loop();
+            } else {
+                return CONFIG_INPUT_SOURCE_2.to_string();
+            }
         }
+        input_source
     }
 
     #[inline]
