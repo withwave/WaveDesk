@@ -103,8 +103,8 @@ jobs:
         shell: bash
         run: |
           # Display/release version label (Cargo version stays 3-part semver
-          # tracks upstream; fork release is 1.4.9.4). Filenames end with modin.kr.
-          REL="1.4.9.4"
+          # tracks upstream; fork release is 1.4.9.5). Filenames end with modin.kr.
+          REL="1.4.9.5"
           # Move the build output to ./rustdesk (the exe inside is rustdesk.exe).
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
           # Portable zip.
@@ -128,7 +128,7 @@ jobs:
       - name: Build MSI installer
         shell: pwsh
         run: |
-          $rel = "1.4.9.4"
+          $rel = "1.4.9.5"
           # preprocess.py expects <app-name>.exe in the dist dir (it reads the
           # version resource from it and harvests components around it).
           Rename-Item ./rustdesk/rustdesk.exe WaveDesk.exe
@@ -155,9 +155,9 @@ jobs:
             ${{ env.INSTALLER }}
             ${{ env.MSI }}
 
-      - name: Attach to release v1.4.9.4-modin
+      - name: Attach to release v1.4.9.5-modin
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload v1.4.9.4-modin "$INSTALLER" "$ZIP" "$MSI" --clobber --repo "${{ github.repository }}"
+          gh release upload v1.4.9.5-modin "$INSTALLER" "$ZIP" "$MSI" --clobber --repo "${{ github.repository }}"

@@ -216,6 +216,10 @@ const String kOptionToggleShowMyCursor = "show-my-cursor";
 // Must match `OPTION_CTRL_ARROW_LOCAL` in src/keyboard.rs.
 const String kOptionCtrlArrowLocal = "allow-ctrl-arrow-local";
 
+// WaveDesk fork revision, shown in About. Bump together with the release
+// tag and the Windows CI REL value.
+const String kWaveDeskVersion = "1.4.9.5";
+
 const String kOptionDisableFloatingWindow = "disable-floating-window";
 
 const String kOptionKeepScreenOn = "keep-screen-on";

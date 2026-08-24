@@ -2446,6 +2446,12 @@ class _AboutState extends State<_About> {
               SelectionArea(
                   child: Text('${translate('Version')}: $version')
                       .marginSymmetric(vertical: 4.0)),
+              // WaveDesk fork revision on its own short line: the combined
+              // "WaveDesk x.y.z.w - github.com/..." link used to be clipped in
+              // a narrow window, which made the version impossible to read.
+              SelectionArea(
+                  child: Text('WaveDesk: $kWaveDeskVersion')
+                      .marginSymmetric(vertical: 4.0)),
               SelectionArea(
                   child: Text('${translate('Build Date')}: $buildDate')
                       .marginSymmetric(vertical: 4.0)),
@@ -2480,7 +2486,7 @@ class _AboutState extends State<_About> {
                         'https://github.com/withwave/WaveDesk/releases');
                   },
                   child: Text(
-                    'WaveDesk 1.4.9.4 - github.com/withwave/WaveDesk',
+                    'github.com/withwave/WaveDesk/releases',
                     style: linkStyle,
                   ).marginSymmetric(vertical: 4.0)),
               // AGPL-3.0: offer the complete corresponding source to users.
