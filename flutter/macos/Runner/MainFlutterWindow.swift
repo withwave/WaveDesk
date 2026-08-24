@@ -204,8 +204,13 @@ class MainFlutterWindow: NSWindow {
                 // WaveDesk: the Dock menu is built natively, so Flutter hands
                 // over the translated title once at startup.
                 case "setDockMenuTitle":
-                    if let title = call.arguments as? String, !title.isEmpty {
-                        AppDelegate.showOnCurrentMonitorTitle = title
+                    if let arg = call.arguments as? [String: Any] {
+                        if let t = arg["showOnCurrentMonitor"] as? String, !t.isEmpty {
+                            AppDelegate.showOnCurrentMonitorTitle = t
+                        }
+                        if let v = arg["version"] as? String {
+                            AppDelegate.versionTitle = v
+                        }
                     }
                     result(nil)
                 case "canRecordAudio":

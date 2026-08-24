@@ -10,6 +10,9 @@ class AppDelegate: FlutterAppDelegate {
     // stays reachable when the window itself is parked off-screen.
     static var dockChannel: FlutterMethodChannel?
     static var showOnCurrentMonitorTitle = "Show on current monitor"
+    // Shown as a disabled header so the running build's version is readable
+    // without digging through Settings -> About.
+    static var versionTitle = ""
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
       dummy_method_to_enforce_bundling()
@@ -33,6 +36,12 @@ class AppDelegate: FlutterAppDelegate {
     // monitor the cursor is on.
     override func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
+        if !AppDelegate.versionTitle.isEmpty {
+            let v = NSMenuItem(title: AppDelegate.versionTitle, action: nil, keyEquivalent: "")
+            v.isEnabled = false
+            menu.addItem(v)
+            menu.addItem(NSMenuItem.separator())
+        }
         let item = NSMenuItem(
             title: AppDelegate.showOnCurrentMonitorTitle,
             action: #selector(showOnCurrentMonitor(_:)),

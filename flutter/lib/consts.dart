@@ -218,7 +218,7 @@ const String kOptionCtrlArrowLocal = "allow-ctrl-arrow-local";
 
 // WaveDesk fork revision, shown in About. Bump together with the release
 // tag and the Windows CI REL value.
-const String kWaveDeskVersion = "1.4.9.6";
+const String kWaveDeskVersion = "1.4.9.7";
 
 const String kOptionDisableFloatingWindow = "disable-floating-window";
 

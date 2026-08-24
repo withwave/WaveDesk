@@ -90,9 +90,10 @@ class _DesktopTabPageState extends State<DesktopTabPage>
       }
       return null;
     });
-    kMacOSPermChannel
-        .invokeMethod('setDockMenuTitle', translate('Show on current monitor'))
-        .catchError((e) => debugPrint('setDockMenuTitle failed: $e'));
+    kMacOSPermChannel.invokeMethod('setDockMenuTitle', {
+      'showOnCurrentMonitor': translate('Show on current monitor'),
+      'version': 'WaveDesk $kWaveDeskVersion',
+    }).catchError((e) => debugPrint('setDockMenuTitle failed: $e'));
   }
 
   // WaveDesk: the display configuration changed (a monitor was unplugged, or
