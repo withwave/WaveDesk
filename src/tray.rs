@@ -74,10 +74,19 @@ fn make_tray() -> hbb_common::ResultType<()> {
         None
     };
     let open_i = MenuItem::new(translate("Open".to_owned()), true, None);
+    // WaveDesk: a window left on a display that is now unplugged cannot be
+    // reached from the window itself, so the escape hatch lives in the tray.
+    let show_here_i = MenuItem::new(
+        translate("Show on current monitor".to_owned()),
+        true,
+        None,
+    );
     if let Some(quit_i) = &quit_i {
-        tray_menu.append_items(&[&open_i, quit_i]).ok();
+        tray_menu
+            .append_items(&[&open_i, &show_here_i, quit_i])
+            .ok();
     } else {
-        tray_menu.append_items(&[&open_i]).ok();
+        tray_menu.append_items(&[&open_i, &show_here_i]).ok();
     }
     let tooltip = |count: usize| {
         if count == 0 {
@@ -96,6 +105,16 @@ fn make_tray() -> hbb_common::ResultType<()> {
         }
     };
     let mut _tray_icon: Arc<Mutex<Option<TrayIcon>>> = Default::default();
+
+    // WaveDesk: ask the running UI to re-home its window on the monitor the
+    // cursor is on. Goes through the url scheme so it reaches the existing
+    // instance; falls back to a plain open if no instance is running.
+    let show_here_func = move || {
+        #[cfg(feature = "flutter")]
+        crate::handle_url_scheme(format!("{}show-here", crate::get_uri_prefix()));
+        #[cfg(not(feature = "flutter"))]
+        crate::run_me::<&str>(vec![]).ok();
+    };
 
     let menu_channel = MenuEvent::receiver();
     let tray_channel = TrayEvent::receiver();
@@ -216,9 +235,13 @@ fn make_tray() -> hbb_common::ResultType<()> {
                         .map(|t| t.set_visible(true));
                 } else if event.id == open_i.id() {
                     open_func();
+                } else if event.id == show_here_i.id() {
+                    show_here_func();
                 }
             } else if event.id == open_i.id() {
                 open_func();
+            } else if event.id == show_here_i.id() {
+                show_here_func();
             }
         }
 

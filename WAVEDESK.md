@@ -136,6 +136,28 @@ was diagnosed to root cause and verified, not worked around.
   when the Flutter input source is active, instead of a switch that silently
   does nothing.
 
+### #4 — Main window stranded off-screen after a monitor change
+- **Symptom:** the main window (connection info, menus) was last positioned on
+  a second display. Unplug that display — or switch to a different monitor
+  layout — and the window sits outside every screen. It cannot be clicked,
+  dragged or reached, so the app is effectively unusable until the config is
+  hand-edited.
+- **Root cause:** the saved window position was only sanity-checked **at
+  startup** (`_adjustRestoreMainWindowOffset`). Nothing re-checked it when the
+  display configuration changed while the app was running, and nothing brought
+  the window back when it was raised from the tray or the Dock.
+- **Fix:** `ensureMainWindowVisible()` (`flutter/lib/common.dart`) re-homes the
+  window when less than 80x80 px of it overlaps any screen's `visibleFrame`,
+  centring it on the screen the cursor is on. It runs
+  - on every `windowOnTop(null)` — so the tray's **Open**, the Dock icon and a
+    second launch all recover the window, and
+  - on `didChangeMetrics()` in the main window (debounced 500 ms) — so
+    unplugging a monitor re-homes it immediately.
+- **Tray → "Show on current monitor"** forces the move even when the window is
+  technically visible, for the case where it is on a monitor you are not
+  looking at. It reaches the running instance through the url scheme
+  (`<app>://show-here`), so it works no matter where the window is parked.
+
 ### Server-side memory leak while being controlled
 - **Symptom:** when this Mac is **controlled** (server role), memory grows
   steadily — past 2 GB after about a week. `ps` RSS looks small because most of

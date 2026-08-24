@@ -27,6 +27,7 @@ import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
+import 'package:screen_retriever/screen_retriever.dart';
 
 import '../consts.dart';
 import 'common/widgets/overlay.dart';
@@ -732,6 +733,58 @@ closeConnection({String? id}) {
   }
 }
 
+// WaveDesk: keep the main window reachable when the monitor layout changes.
+// A window last positioned on a second display ends up outside every screen
+// once that display is unplugged — and a window you cannot see is a window you
+// cannot drag back. Called whenever the main window is brought up and whenever
+// the display configuration changes.
+//
+// [force] always re-homes the window to the screen the cursor is on ("show on
+// current monitor"); without it the window is only moved when it is not usably
+// visible, so a deliberately half-off-screen window is left alone.
+Future<void> ensureMainWindowVisible({bool force = false}) async {
+  if (!isDesktop) return;
+  try {
+    final screens = await window_size.getScreenList();
+    if (screens.isEmpty) return;
+    final bounds = await windowManager.getBounds();
+
+    // Enough of the window must be on one screen to grab its title bar.
+    const minVisible = 80.0;
+    final isVisible = screens.any((s) {
+      final i = bounds.intersect(s.visibleFrame);
+      return i.width >= minVisible && i.height >= minVisible;
+    });
+    if (isVisible && !force) return;
+
+    var target = screens.first;
+    try {
+      final cursor = await screenRetriever.getCursorScreenPoint();
+      target = screens.firstWhere((s) => s.frame.contains(cursor),
+          orElse: () => screens.first);
+    } catch (_) {
+      // No cursor info (headless / unsupported): fall back to the first screen.
+    }
+
+    final vf = target.visibleFrame;
+    final size = Size(
+      bounds.width.clamp(100.0, vf.width),
+      bounds.height.clamp(100.0, vf.height),
+    );
+    final offset = Offset(
+      vf.left + (vf.width - size.width) / 2,
+      vf.top + (vf.height - size.height) / 2,
+    );
+    debugPrint('ensureMainWindowVisible: $bounds -> $offset ($size)');
+    await windowManager.setSize(size,
+        ignoreDevicePixelRatio: _ignoreDevicePixelRatio);
+    await windowManager.setPosition(offset,
+        ignoreDevicePixelRatio: _ignoreDevicePixelRatio);
+  } catch (e) {
+    debugPrint('ensureMainWindowVisible failed: $e');
+  }
+}
+
 Future<void> windowOnTop(int? id) async {
   if (!isDesktop) {
     return;
@@ -744,6 +797,8 @@ Future<void> windowOnTop(int? id) async {
     }
     await windowManager.show();
     await windowManager.focus();
+    // The window may be parked on a display that no longer exists. (WaveDesk)
+    await ensureMainWindowVisible();
     await rustDeskWinManager.registerActiveWindow(kWindowMainId);
   } else {
     WindowController.fromWindowId(id)
@@ -2357,6 +2412,16 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
     return true;
   }
 
+  // WaveDesk: bring the main window onto the monitor the cursor is on, even if
+  // it is currently parked on a display that is gone.
+  if (args.length == 1 && args[0] == '--show-here') {
+    () async {
+      await windowOnTop(null);
+      await ensureMainWindowVisible(force: true);
+    }();
+    return true;
+  }
+
   UriLinkType? type;
   String? id;
   String? password;
@@ -2480,6 +2545,9 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
   if (uri.authority.isEmpty &&
       uri.path.split('').every((char) => char == '/')) {
     return [];
+  } else if (uri.authority == "show-here") {
+    // WaveDesk: tray -> "Show on current monitor".
+    return ['--show-here'];
   } else if (uri.authority == "connection" && uri.path.startsWith("/new/")) {
     // For compatibility
     command = '--connect';

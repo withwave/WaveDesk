@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
@@ -37,8 +38,10 @@ class DesktopTabPage extends StatefulWidget {
   }
 }
 
-class _DesktopTabPageState extends State<DesktopTabPage> {
+class _DesktopTabPageState extends State<DesktopTabPage>
+    with WidgetsBindingObserver {
   final tabController = DesktopTabController(tabType: DesktopTabType.main);
+  Timer? _visibilityCheckTimer;
 
   _DesktopTabPageState() {
     RemoteCountState.init();
@@ -69,6 +72,20 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   void initState() {
     super.initState();
     // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  // WaveDesk: the display configuration changed (a monitor was unplugged, or
+  // the layout/resolution changed). A window parked on a display that is gone
+  // is unreachable, so re-home it. Debounced because macOS emits a burst of
+  // metric changes while the layout settles.
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    _visibilityCheckTimer?.cancel();
+    _visibilityCheckTimer = Timer(const Duration(milliseconds: 500), () {
+      ensureMainWindowVisible();
+    });
   }
 
   /*
@@ -84,6 +101,8 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   @override
   void dispose() {
     // HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    _visibilityCheckTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     Get.delete<DesktopTabController>();
 
     super.dispose();
