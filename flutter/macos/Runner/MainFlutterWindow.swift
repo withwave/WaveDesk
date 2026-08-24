@@ -45,6 +45,11 @@ class MainFlutterWindow: NSWindow {
         // register self method handler
         let registrar = flutterViewController.registrar(forPlugin: "RustDeskPlugin")
         setMethodHandler(registrar: registrar)
+        // WaveDesk: bridge for the Dock menu, on the MAIN window's engine only.
+        // The Dock menu stays reachable when the window itself is off-screen.
+        AppDelegate.dockChannel = FlutterMethodChannel(
+            name: "org.rustdesk.rustdesk/dock",
+            binaryMessenger: registrar.messenger)
 
         RegisterGeneratedPlugins(registry: flutterViewController)
 
@@ -195,6 +200,13 @@ class MainFlutterWindow: NSWindow {
                     break;
                 case "terminate":
                     NSApplication.shared.terminate(self)
+                    result(nil)
+                // WaveDesk: the Dock menu is built natively, so Flutter hands
+                // over the translated title once at startup.
+                case "setDockMenuTitle":
+                    if let title = call.arguments as? String, !title.isEmpty {
+                        AppDelegate.showOnCurrentMonitorTitle = title
+                    }
                     result(nil)
                 case "canRecordAudio":
                     switch AVCaptureDevice.authorizationStatus(for: .audio) {

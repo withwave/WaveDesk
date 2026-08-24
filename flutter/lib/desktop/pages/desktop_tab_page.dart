@@ -9,7 +9,7 @@ import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 import 'package:window_manager/window_manager.dart';
-// import 'package:flutter/services.dart';
+import 'package:flutter/services.dart';
 
 import '../../common/shared_state.dart';
 
@@ -73,6 +73,26 @@ class _DesktopTabPageState extends State<DesktopTabPage>
     super.initState();
     // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
     WidgetsBinding.instance.addObserver(this);
+    _initDockMenu();
+  }
+
+  // WaveDesk: the macOS Dock menu (right-click the Dock icon) is the one entry
+  // point that still works when the window is parked off-screen, so it carries
+  // "Show on current monitor". The native menu is built in AppDelegate; here we
+  // hand it the translated title and handle the click.
+  void _initDockMenu() {
+    if (!isMacOS) return;
+    const dockChannel = MethodChannel('org.rustdesk.rustdesk/dock');
+    dockChannel.setMethodCallHandler((call) async {
+      if (call.method == 'showOnCurrentMonitor') {
+        await windowOnTop(null);
+        await ensureMainWindowVisible(force: true);
+      }
+      return null;
+    });
+    kMacOSPermChannel
+        .invokeMethod('setDockMenuTitle', translate('Show on current monitor'))
+        .catchError((e) => debugPrint('setDockMenuTitle failed: $e'));
   }
 
   // WaveDesk: the display configuration changed (a monitor was unplugged, or
