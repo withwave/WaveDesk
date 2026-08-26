@@ -554,6 +554,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Pass Ctrl+Arrow to local (Mission Control)", "Ctrl+화살표를 로컬로 전달 (미션 컨트롤)"),
         ("Requires Input source 1", "입력 소스 1 필요"),
         ("Show on current monitor", "현재 모니터에 표시"),
+        ("Connect on current monitor", "현재 모니터에서 연결"),
         ("Pass desktop-switch shortcut to local", "데스크탑 전환 단축키를 로컬로 전달 (Win+Ctrl+화살표 / Win+Tab)"),
         ("Always start remote session in full screen", "원격 세션을 항상 전체 화면으로 시작"),
         ("2FA code", "이중 인증 코드"),

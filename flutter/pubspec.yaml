@@ -22,8 +22,6 @@ environment:
   sdk: '^3.1.0'
 
 dependencies:
-  # WaveDesk: cursor position, to re-home the window on the current monitor.
-  screen_retriever: 0.1.9
   flutter:
     sdk: flutter
   flutter_localizations:

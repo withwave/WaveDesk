@@ -203,10 +203,47 @@ class MainFlutterWindow: NSWindow {
                     result(nil)
                 // WaveDesk: the Dock menu is built natively, so Flutter hands
                 // over the translated title once at startup.
+                // WaveDesk: visible frame of the screen this window is on, in
+                // raw Cocoa coordinates — the same space WindowController's
+                // setFrame() uses. window_size flips everything against the
+                // topmost screen edge, so its rects must NOT be fed to
+                // setFrame(): on a multi-monitor desk the window lands on the
+                // wrong display.
+                // WaveDesk: move THIS window natively, without animation.
+                // desktop_multi_window's setFrame animates, and macOS decides
+                // which display to go fullscreen on from the window's screen
+                // association — which has not settled while that animation is
+                // running, so the session went fullscreen on the display it
+                // started from. The Dock menu already moves windows this way
+                // and works on every monitor.
+                case "setWindowFrameNative":
+                    guard let arg = call.arguments as? [String: Any],
+                          let win = registrar.view?.window,
+                          let l = arg["l"] as? Double, let t = arg["t"] as? Double,
+                          let w = arg["w"] as? Double, let h = arg["h"] as? Double
+                    else {
+                        result(false)
+                        return
+                    }
+                    win.setFrame(NSRect(x: l, y: t, width: w, height: h), display: true)
+                    result(true)
+                case "getCurrentScreenVisibleFrame":
+                    guard let screen = registrar.view?.window?.screen ?? NSScreen.main else {
+                        result(nil)
+                        return
+                    }
+                    let f = screen.visibleFrame
+                    result([
+                        "l": f.minX, "t": f.minY, "r": f.maxX, "b": f.maxY,
+                    ])
                 case "setDockMenuTitle":
                     if let arg = call.arguments as? [String: Any] {
                         if let t = arg["showOnCurrentMonitor"] as? String, !t.isEmpty {
                             AppDelegate.showOnCurrentMonitorTitle = t
+                            // The Window-menu item may already exist with the
+                            // English fallback; retitle it in place.
+                            AppDelegate.windowMenuItem?.title = t
+                            (NSApp.delegate as? AppDelegate)?.installWindowMenuItem()
                         }
                         if let v = arg["version"] as? String {
                             AppDelegate.versionTitle = v

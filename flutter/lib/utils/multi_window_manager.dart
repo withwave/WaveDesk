@@ -8,6 +8,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/main.dart';
 import 'package:flutter_hbb/models/input_model.dart';
+import 'package:window_size/window_size.dart' as window_size;
 
 /// must keep the order
 // ignore: constant_identifier_names
@@ -187,6 +188,12 @@ class RustDeskMultiWindowManager {
     List<int> windows,
     String msg, {
     Rect? screenRect,
+    // WaveDesk: forwarded to the reuse path below, which restores the window
+    // position in THIS process — the params inside `msg` only reach a freshly
+    // created window, so without these an existing (inactive) window is
+    // restored to its old spot and "Connect on current monitor" does nothing.
+    Rect? mainScreen,
+    bool useCurrentMonitor = false,
   }) async {
     if (openInTabs) {
       if (windows.isEmpty) {
@@ -202,7 +209,10 @@ class RustDeskMultiWindowManager {
           if (_inactiveWindows.contains(windowId)) {
             if (screenRect == null) {
               await restoreWindowPosition(type,
-                  windowId: windowId, peerId: remoteId);
+                  windowId: windowId,
+                  peerId: remoteId,
+                  mainScreen: mainScreen,
+                  useCurrentMonitor: useCurrentMonitor);
             }
             await DesktopMultiWindow.invokeMethod(windowId, methodName, msg);
             if (methodName != kWindowEventNewRemoteDesktop) {
@@ -230,6 +240,7 @@ class RustDeskMultiWindowManager {
     bool? isRDP,
     bool? isSharedPassword,
     String? connToken,
+    bool useCurrentMonitor = false,
   }) async {
     var params = {
       "type": type.index,
@@ -237,6 +248,26 @@ class RustDeskMultiWindowManager {
       "password": password,
       "forceRelay": forceRelay
     };
+    // WaveDesk: the session window is created in a separate engine that has no
+    // idea where the main window sits, so hand it this window's screen. Used
+    // as a fallback when the remembered position is on a display that is gone,
+    // and as the target when the user picked "Connect on current monitor".
+    Rect? _mainScreenRect;
+    if (type == WindowType.RemoteDesktop) {
+      final screen = await _currentScreenFrame();
+      _mainScreenRect = screen;
+      if (screen != null) {
+        params['main_screen'] = {
+          'l': screen.left,
+          't': screen.top,
+          'r': screen.right,
+          'b': screen.bottom,
+        };
+      }
+      if (useCurrentMonitor) {
+        params['use_current_monitor'] = true;
+      }
+    }
     if (switchUuid != null) {
       params['switch_uuid'] = switchUuid;
     }
@@ -264,7 +295,32 @@ class RustDeskMultiWindowManager {
       }
     }
 
-    return _newSession(openInTabs, type, methodName, remoteId, windows, msg);
+    return _newSession(openInTabs, type, methodName, remoteId, windows, msg,
+        mainScreen: _mainScreenRect, useCurrentMonitor: useCurrentMonitor);
+  }
+
+  // WaveDesk: visible area of the screen the main window is on, in the same
+  // coordinate space as `window_size`'s screen list (deliberately one plugin,
+  // to avoid the Y-flip mismatch other plugins have on multi-monitor setups).
+  Future<Rect?> _currentScreenFrame() async {
+    try {
+      if (isMacOS) {
+        // Native, so the rect is in the same coordinate space as
+        // WindowController.setFrame(). window_size flips its rects against the
+        // topmost screen edge and must not be mixed in here.
+        final f = await kMacOSPermChannel
+            .invokeMethod<Map<dynamic, dynamic>>('getCurrentScreenVisibleFrame');
+        if (f == null) return null;
+        return Rect.fromLTRB((f['l'] as num).toDouble(),
+            (f['t'] as num).toDouble(), (f['r'] as num).toDouble(),
+            (f['b'] as num).toDouble());
+      }
+      final screen = await window_size.getCurrentScreen();
+      return screen?.visibleFrame;
+    } catch (e) {
+      debugPrint('_currentScreenFrame failed: $e');
+      return null;
+    }
   }
 
   Future<MultiWindowCallResult> newRemoteDesktop(
@@ -273,6 +329,7 @@ class RustDeskMultiWindowManager {
     bool? isSharedPassword,
     String? switchUuid,
     bool? forceRelay,
+    bool useCurrentMonitor = false,
   }) async {
     return await newSession(
       WindowType.RemoteDesktop,
@@ -283,6 +340,7 @@ class RustDeskMultiWindowManager {
       forceRelay: forceRelay,
       switchUuid: switchUuid,
       isSharedPassword: isSharedPassword,
+      useCurrentMonitor: useCurrentMonitor,
     );
   }
 

@@ -547,6 +547,7 @@ abstract class BasePeerCard extends StatelessWidget {
     bool isRDP = false,
     bool isTerminal = false,
     bool isTerminalRunAsAdmin = false,
+    bool useCurrentMonitor = false,
   }) {
     return MenuEntryButton<String>(
       childBuilder: (TextStyle? style) => Text(
@@ -566,6 +567,7 @@ abstract class BasePeerCard extends StatelessWidget {
           isTcpTunneling: isTcpTunneling,
           isRDP: isRDP,
           isTerminal: isTerminal || isTerminalRunAsAdmin,
+          useCurrentMonitor: useCurrentMonitor,
         );
       },
       padding: menuPadding,
@@ -580,6 +582,17 @@ abstract class BasePeerCard extends StatelessWidget {
       (peer.alias.isEmpty
           ? translate('Connect')
           : '${translate('Connect')} ${peer.id}'),
+    );
+  }
+
+  // WaveDesk: one-shot override — open this session on the monitor the main
+  // window is on, regardless of where the session window was last left.
+  @protected
+  MenuEntryBase<String> _connectOnCurrentMonitorAction(BuildContext context) {
+    return _connectCommonAction(
+      context,
+      translate('Connect on current monitor'),
+      useCurrentMonitor: true,
     );
   }
 
@@ -968,6 +981,7 @@ class RecentPeerCard extends BasePeerCard {
       BuildContext context) async {
     final List<MenuEntryBase<String>> menuItems = [
       _connectAction(context),
+      if (isDesktop) _connectOnCurrentMonitorAction(context),
       _transferFileAction(context),
       _viewCameraAction(context),
       _terminalAction(context),
@@ -1033,6 +1047,7 @@ class FavoritePeerCard extends BasePeerCard {
       BuildContext context) async {
     final List<MenuEntryBase<String>> menuItems = [
       _connectAction(context),
+      if (isDesktop) _connectOnCurrentMonitorAction(context),
       _transferFileAction(context),
       _viewCameraAction(context),
       _terminalAction(context),
@@ -1093,6 +1108,7 @@ class DiscoveredPeerCard extends BasePeerCard {
       BuildContext context) async {
     final List<MenuEntryBase<String>> menuItems = [
       _connectAction(context),
+      if (isDesktop) _connectOnCurrentMonitorAction(context),
       _transferFileAction(context),
       _viewCameraAction(context),
       _terminalAction(context),
@@ -1152,6 +1168,7 @@ class AddressBookPeerCard extends BasePeerCard {
       BuildContext context) async {
     final List<MenuEntryBase<String>> menuItems = [
       _connectAction(context),
+      if (isDesktop) _connectOnCurrentMonitorAction(context),
       _transferFileAction(context),
       _viewCameraAction(context),
       _terminalAction(context),
@@ -1309,6 +1326,7 @@ class MyGroupPeerCard extends BasePeerCard {
       BuildContext context) async {
     final List<MenuEntryBase<String>> menuItems = [
       _connectAction(context),
+      if (isDesktop) _connectOnCurrentMonitorAction(context),
       _transferFileAction(context),
       _viewCameraAction(context),
       _terminalAction(context),
@@ -1543,7 +1561,8 @@ void connectInPeerTab(BuildContext context, Peer peer, PeerTabIndex tab,
     bool isViewCamera = false,
     bool isTcpTunneling = false,
     bool isRDP = false,
-    bool isTerminal = false}) async {
+    bool isTerminal = false,
+    bool useCurrentMonitor = false}) async {
   var password = '';
   bool isSharedPassword = false;
   if (tab == PeerTabIndex.ab) {
@@ -1577,5 +1596,6 @@ void connectInPeerTab(BuildContext context, Peer peer, PeerTabIndex tab,
       isTerminal: isTerminal,
       isViewCamera: isViewCamera,
       isTcpTunneling: isTcpTunneling,
-      isRDP: isRDP);
+      isRDP: isRDP,
+      useCurrentMonitor: useCurrentMonitor);
 }

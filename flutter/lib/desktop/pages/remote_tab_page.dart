@@ -49,6 +49,9 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
   String? peerId;
   bool _isScreenRectSet = false;
   int? _display;
+  // WaveDesk: screen of the main window when this session was started.
+  Rect? _mainScreen;
+  bool _useCurrentMonitor = false;
 
   var connectionMap = RxList<Widget>.empty(growable: true);
 
@@ -62,6 +65,8 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
     final screenRect = parseParamScreenRect(params);
     _isScreenRectSet = screenRect != null;
     _display = display as int?;
+    _mainScreen = parseParamMainScreen(params);
+    _useCurrentMonitor = parseParamUseCurrentMonitor(params);
     tryMoveToScreenAndSetFullscreen(screenRect);
     if (peerId != null) {
       ConnectionTypeState.init(peerId!);
@@ -123,6 +128,8 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
               ? null
               : tabController.state.value.tabs[0].key,
           display: _display,
+          mainScreen: _mainScreen,
+          useCurrentMonitor: _useCurrentMonitor,
         );
       });
     }
@@ -441,15 +448,20 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
         // window fullscreen when a session is added to it — upstream exits
         // fullscreen here to reposition the window, which made sessions start
         // fullscreen and then drop to windowed moments later. (WaveDesk)
+        // An explicit "Connect on current monitor" outranks keeping the
+        // window fullscreen where it is. (WaveDesk)
         final keepFullscreen = stateGlobal.fullscreen.isTrue &&
-            mainGetLocalBoolOptionSync(kOptionStartRemoteFullscreen);
+            mainGetLocalBoolOptionSync(kOptionStartRemoteFullscreen) &&
+            !parseParamUseCurrentMonitor(args);
         if (stateGlobal.fullscreen.isTrue && !keepFullscreen) {
           await WindowController.fromWindowId(windowId()).setFullscreen(false);
           stateGlobal.setFullscreen(false, procWnd: false);
         }
         if (!keepFullscreen) {
           await setNewConnectWindowFrame(windowId(), id!, prePeerCount,
-              WindowType.RemoteDesktop, display, screenRect);
+              WindowType.RemoteDesktop, display, screenRect,
+              mainScreen: parseParamMainScreen(args),
+              useCurrentMonitor: parseParamUseCurrentMonitor(args));
         }
         Future.delayed(Duration(milliseconds: isWindows ? 100 : 0), () async {
           await windowOnTop(windowId());

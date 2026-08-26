@@ -158,6 +158,32 @@ was diagnosed to root cause and verified, not worked around.
   looking at. It reaches the running instance through the url scheme
   (`<app>://show-here`), so it works no matter where the window is parked.
 
+### #5 — Session window opened on the wrong monitor
+- **Symptom:** the remote session window always opened on the primary display,
+  no matter which monitor the main window was on. Worst on a display placed
+  *above* the primary, where even an explicit request landed on the primary.
+- **Root causes (three, all needed fixing):**
+  1. `restoreWindowPosition()` skipped positioning entirely on macOS when
+     "start in fullscreen" was on (`if (!isMacOS) await restoreFrame()`), so
+     the window went fullscreen wherever it happened to be.
+  2. The reuse path in `_newSession()` restores the position in the *main*
+     process, so parameters carried inside the session message never reached
+     it — a window that had been opened and closed before ignored the request.
+  3. `window_size` reports screen rects **flipped against the topmost screen
+     edge**, while `WindowController.setFrame()` takes raw Cocoa coordinates.
+     Mixing them put the window on the wrong display.
+- **The one that hid the rest:** desktop_multi_window's `setFrame` **animates**
+  (`animate: true`). macOS picks the fullscreen display from the window's
+  screen association, which has not settled while that animation runs — so the
+  window visibly moved to the right monitor and then went fullscreen on the old
+  one. Positioning now goes through `setWindowFrameNative` (Cocoa,
+  un-animated), the same path the Dock menu uses, and the fullscreen retry loop
+  re-asserts the frame until fullscreen actually takes on the target screen.
+- **Behaviour:** a remembered position is still honoured (nothing moves for
+  people happy with their layout); the main window's screen is used only when
+  the remembered spot is on a display that is gone, or when the user picks
+  **"현재 모니터에서 연결"** from the peer's menu.
+
 ### Server-side memory leak while being controlled
 - **Symptom:** when this Mac is **controlled** (server role), memory grows
   steadily — past 2 GB after about a week. `ps` RSS looks small because most of

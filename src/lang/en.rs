@@ -200,6 +200,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Pass Ctrl+Arrow to local (Mission Control)", "Pass Ctrl+Arrow to local (Mission Control)"),
         ("Requires Input source 1", "Requires Input source 1"),
         ("Show on current monitor", "Show on current monitor"),
+        ("Connect on current monitor", "Connect on current monitor"),
         ("Pass desktop-switch shortcut to local", "Pass desktop-switch shortcut to local"),
         ("Always start remote session in full screen", "Always start remote session in full screen"),
         ("2FA code", "2FA code"),

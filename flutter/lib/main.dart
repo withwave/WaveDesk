@@ -248,6 +248,8 @@ void runMultiWindow(
           windowId: kWindowId!,
           peerId: argument['id'] as String?,
           display: argument['display'] as int?,
+          mainScreen: parseParamMainScreen(argument),
+          useCurrentMonitor: parseParamUseCurrentMonitor(argument),
         );
       }
       break;

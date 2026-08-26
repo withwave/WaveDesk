@@ -27,7 +27,6 @@ import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
-import 'package:screen_retriever/screen_retriever.dart';
 
 import '../consts.dart';
 import 'common/widgets/overlay.dart';
@@ -733,15 +732,14 @@ closeConnection({String? id}) {
   }
 }
 
-// WaveDesk: keep the main window reachable when the monitor layout changes.
-// A window last positioned on a second display ends up outside every screen
-// once that display is unplugged — and a window you cannot see is a window you
-// cannot drag back. Called whenever the main window is brought up and whenever
-// the display configuration changes.
+// WaveDesk: fallback for the Dock menu's "Show on current monitor" when the
+// native handler cannot find the window (see macos/Runner/AppDelegate.swift,
+// which does the move itself in Cocoa coordinates).
 //
-// [force] always re-homes the window to the screen the cursor is on ("show on
-// current monitor"); without it the window is only moved when it is not usably
-// visible, so a deliberately half-off-screen window is left alone.
+// Deliberately NOT wired to any automatic trigger: an automatic re-home fired
+// on window raise / display change and moved windows the user had just placed
+// deliberately. Moving the user's window is only ever done on explicit
+// request.
 Future<void> ensureMainWindowVisible({bool force = false}) async {
   if (!isDesktop) return;
   try {
@@ -757,14 +755,13 @@ Future<void> ensureMainWindowVisible({bool force = false}) async {
     });
     if (isVisible && !force) return;
 
-    var target = screens.first;
-    try {
-      final cursor = await screenRetriever.getCursorScreenPoint();
-      target = screens.firstWhere((s) => s.frame.contains(cursor),
-          orElse: () => screens.first);
-    } catch (_) {
-      // No cursor info (headless / unsupported): fall back to the first screen.
-    }
+    // Primary screen (index 0 carries the menu bar on macOS). Deliberately not
+    // cursor-based: screen_retriever's cursor point and window_size's frames
+    // disagree on the Y flip once a second monitor exists, which picks the
+    // wrong screen. "Show on current monitor" resolves the screen natively
+    // instead (macOS AppDelegate); this path only has to land somewhere the
+    // user can actually see and grab the window.
+    final target = screens.first;
 
     final vf = target.visibleFrame;
     final size = Size(
@@ -797,8 +794,6 @@ Future<void> windowOnTop(int? id) async {
     }
     await windowManager.show();
     await windowManager.focus();
-    // The window may be parked on a display that no longer exists. (WaveDesk)
-    await ensureMainWindowVisible();
     await rustDeskWinManager.registerActiveWindow(kWindowMainId);
   } else {
     WindowController.fromWindowId(id)
@@ -2095,7 +2090,7 @@ Future<Offset?> _adjustRestoreMainWindowOffset(
 // (WaveDesk)
 final Set<int> _fsRetryInFlight = {};
 
-Future<void> setStartRemoteFullscreen(int windowId) async {
+Future<void> setStartRemoteFullscreen(int windowId, {Rect? targetFrame}) async {
   // restoreWindowPosition can run twice for the same new window (sub window
   // init + tab page init); one retry loop per window is enough.
   if (!_fsRetryInFlight.add(windowId)) return;
@@ -2126,6 +2121,23 @@ Future<void> setStartRemoteFullscreen(int windowId) async {
     for (int i = 0; i < 24; i++) {
       await Future.delayed(const Duration(milliseconds: 300));
       if (await confirmed()) return;
+      // macOS enters fullscreen on whichever screen the window occupies, and
+      // the animated setFrame that put it on the target screen may not have
+      // settled yet — re-assert the frame while we are still windowed, or the
+      // session goes fullscreen on the display it started on. (WaveDesk)
+      if (targetFrame != null) {
+        try {
+          final wc = WindowController.fromWindowId(windowId);
+          final cur = await wc.getFrame();
+          if ((cur.left - targetFrame.left).abs() > 2 ||
+              (cur.top - targetFrame.top).abs() > 2) {
+            if (!await _setFrameNative(targetFrame)) {
+              await wc.setFrame(targetFrame);
+            }
+            await Future.delayed(const Duration(milliseconds: 200));
+          }
+        } catch (_) {}
+      }
       if (self) {
         stateGlobal.setFullscreen(true, force: true);
       } else {
@@ -2153,8 +2165,50 @@ Future<void> setStartRemoteFullscreen(int windowId) async {
   }
 }
 
+// WaveDesk: move a window without animation, natively. Returns false when the
+// native path is unavailable so callers can fall back to the plugin.
+Future<bool> _setFrameNative(Rect frame) async {
+  if (!isMacOS) return false;
+  try {
+    final ok = await kMacOSPermChannel.invokeMethod<bool>('setWindowFrameNative', {
+      'l': frame.left,
+      't': frame.top,
+      'w': frame.width,
+      'h': frame.height,
+    });
+    return ok == true;
+  } catch (e) {
+    debugPrint('setWindowFrameNative failed: $e');
+    return false;
+  }
+}
+
+// WaveDesk: centre a sub window inside the given screen area.
+Future<void> _centerOnScreen(int windowId, Rect screen) async {
+  try {
+    final wc = WindowController.fromWindowId(windowId);
+    final frame = await wc.getFrame();
+    final w = frame.width.clamp(100.0, screen.width);
+    final h = frame.height.clamp(100.0, screen.height);
+    await wc.setFrame(Rect.fromLTWH(
+      screen.left + (screen.width - w) / 2,
+      screen.top + (screen.height - h) / 2,
+      w,
+      h,
+    ));
+  } catch (e) {
+    debugPrint('_centerOnScreen failed: $e');
+  }
+}
+
 Future<bool> restoreWindowPosition(WindowType type,
-    {int? windowId, String? peerId, int? display}) async {
+    {int? windowId,
+    String? peerId,
+    int? display,
+    // WaveDesk: screen the main window was on, and whether to force the
+    // session onto it regardless of the remembered position.
+    Rect? mainScreen,
+    bool useCurrentMonitor = false}) async {
   if (bind
       .mainGetEnv(key: "DISABLE_RUSTDESK_RESTORE_WINDOW_POSITION")
       .isNotEmpty) {
@@ -2199,6 +2253,13 @@ Future<bool> restoreWindowPosition(WindowType type,
         // No need to change the position of a sub window if no position is saved,
         // since the default position is already centered.
         // https://github.com/rustdesk/rustdesk/blob/317639169359936f7f9f85ef445ec9774218772d/flutter/lib/utils/multi_window_manager.dart#L163
+        // ... except that "centered" means the primary screen, not the screen
+        // the user is working on, so prefer the main window's screen. (WaveDesk)
+        if (type == WindowType.RemoteDesktop &&
+            windowId != null &&
+            mainScreen != null) {
+          await _centerOnScreen(windowId, mainScreen);
+        }
         // But still honor "start remote in full screen" for new remote sessions.
         if (type == WindowType.RemoteDesktop &&
             windowId != null &&
@@ -2229,12 +2290,26 @@ Future<bool> restoreWindowPosition(WindowType type,
   }
 
   final size = await _adjustRestoreMainWindowSize(lpos.width, lpos.height);
-  final offsetLeftTop = await _adjustRestoreMainWindowOffset(
+  var offsetLeftTop = await _adjustRestoreMainWindowOffset(
     lpos.offsetWidth,
     lpos.offsetHeight,
     size.width,
     size.height,
   );
+  // WaveDesk: the remembered spot may be on a display that is no longer there
+  // (_adjustRestoreMainWindowOffset returns null then), or the user explicitly
+  // asked for this monitor. Either way, land on the main window's screen
+  // instead of falling back to the primary one.
+  var targetedScreen = false;
+  if (type == WindowType.RemoteDesktop &&
+      mainScreen != null &&
+      (useCurrentMonitor || offsetLeftTop == null)) {
+    offsetLeftTop = Offset(
+      mainScreen.left + (mainScreen.width - size.width) / 2,
+      mainScreen.top + (mainScreen.height - size.height) / 2,
+    );
+    targetedScreen = true;
+  }
   debugPrint(
       "restore lpos: ${size.width}/${size.height}, offset:${offsetLeftTop?.dx}/${offsetLeftTop?.dy}, isMaximized: ${lpos.isMaximized}, isFullscreen: ${lpos.isFullscreen}");
 
@@ -2287,18 +2362,31 @@ Future<bool> restoreWindowPosition(WindowType type,
         } else {
           final frame = Rect.fromLTWH(
               offsetLeftTop.dx, offsetLeftTop.dy, size.width, size.height);
-          await wc.setFrame(frame);
+          // Prefer the un-animated native move; see setWindowFrameNative.
+          if (!await _setFrameNative(frame)) {
+            await wc.setFrame(frame);
+          }
         }
       }
       if (lpos.isFullscreen == true ||
           (type == WindowType.RemoteDesktop &&
               mainGetLocalBoolOptionSync(kOptionStartRemoteFullscreen))) {
-        if (!isMacOS) {
+        // Upstream skips the move on macOS because repositioning can fight the
+        // fullscreen Space transition. But macOS enters fullscreen on whichever
+        // screen the window currently occupies, so when a specific monitor was
+        // requested the window MUST be moved there first — otherwise "Connect
+        // on current monitor" silently goes fullscreen on the primary display.
+        // (WaveDesk)
+        if (!isMacOS || targetedScreen) {
           await restoreFrame();
         }
         // A retry loop is needed to avoid the window being restored after
         // fullscreen and to survive the sub window not being on screen yet.
-        setStartRemoteFullscreen(windowId);
+        setStartRemoteFullscreen(windowId,
+            targetFrame: targetedScreen && offsetLeftTop != null
+                ? Rect.fromLTWH(offsetLeftTop.dx, offsetLeftTop.dy, size.width,
+                    size.height)
+                : null);
       } else if (lpos.isMaximized == true) {
         await restoreFrame();
         // An duration is needed to avoid the window being restored after maximized.
@@ -2675,7 +2763,8 @@ connectMainDesktop(String id,
     bool? forceRelay,
     String? password,
     String? connToken,
-    bool? isSharedPassword}) async {
+    bool? isSharedPassword,
+    bool useCurrentMonitor = false}) async {
   if (isFileTransfer) {
     await rustDeskWinManager.newFileTransfer(id,
         password: password,
@@ -2704,7 +2793,8 @@ connectMainDesktop(String id,
     await rustDeskWinManager.newRemoteDesktop(id,
         password: password,
         isSharedPassword: isSharedPassword,
-        forceRelay: forceRelay);
+        forceRelay: forceRelay,
+        useCurrentMonitor: useCurrentMonitor);
   }
 }
 
@@ -2722,7 +2812,9 @@ connect(BuildContext context, String id,
     bool forceRelay = false,
     String? password,
     String? connToken,
-    bool? isSharedPassword}) async {
+    bool? isSharedPassword,
+    // WaveDesk: open the session window on the screen the main window is on.
+    bool useCurrentMonitor = false}) async {
   if (id == '') return;
   if (!isDesktop || desktopType == DesktopType.main) {
     try {
@@ -2755,6 +2847,7 @@ connect(BuildContext context, String id,
         password: password,
         isSharedPassword: isSharedPassword,
         forceRelay: forceRelay,
+        useCurrentMonitor: useCurrentMonitor,
       );
     } else {
       await rustDeskWinManager.call(WindowType.Main, kWindowConnect, {
@@ -2768,6 +2861,7 @@ connect(BuildContext context, String id,
         'isSharedPassword': isSharedPassword,
         'forceRelay': forceRelay,
         'connToken': connToken,
+        'useCurrentMonitor': useCurrentMonitor,
       });
     }
   } else {
@@ -3593,13 +3687,20 @@ openMonitorInNewTabOrWindow(int i, String peerId, PeerInfo pi,
 }
 
 setNewConnectWindowFrame(int windowId, String peerId, int preSessionCount,
-    WindowType windowType, int? display, Rect? screenRect) async {
+    WindowType windowType, int? display, Rect? screenRect,
+    {Rect? mainScreen, bool useCurrentMonitor = false}) async {
   if (screenRect == null) {
     // Do not restore window position to new connection if there's a pre-session.
     // https://github.com/rustdesk/rustdesk/discussions/8825
-    if (preSessionCount == 0) {
+    // WaveDesk: an explicit "Connect on current monitor" still applies, even
+    // when the window already hosts a session.
+    if (preSessionCount == 0 || useCurrentMonitor) {
       await restoreWindowPosition(windowType,
-          windowId: windowId, display: display, peerId: peerId);
+          windowId: windowId,
+          display: display,
+          peerId: peerId,
+          mainScreen: mainScreen,
+          useCurrentMonitor: useCurrentMonitor);
     }
   } else {
     await tryMoveToScreenAndSetFullscreen(screenRect);
@@ -3625,6 +3726,23 @@ tryMoveToScreenAndSetFullscreen(Rect? screenRect) async {
   // A retry loop is needed to avoid the window being restored after fullscreen.
   setStartRemoteFullscreen(stateGlobal.windowId);
 }
+
+// WaveDesk: the screen the main window was on when the session was started,
+// plus whether the user explicitly asked for "Connect on current monitor".
+Rect? parseParamMainScreen(Map<String, dynamic> params) {
+  final m = params['main_screen'];
+  if (m == null) return null;
+  try {
+    return Rect.fromLTRB(m['l'] as double, m['t'] as double, m['r'] as double,
+        m['b'] as double);
+  } catch (e) {
+    debugPrint('parseParamMainScreen failed: $e');
+    return null;
+  }
+}
+
+bool parseParamUseCurrentMonitor(Map<String, dynamic> params) =>
+    params['use_current_monitor'] == true;
 
 parseParamScreenRect(Map<String, dynamic> params) {
   Rect? screenRect;

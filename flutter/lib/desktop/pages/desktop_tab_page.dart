@@ -38,10 +38,8 @@ class DesktopTabPage extends StatefulWidget {
   }
 }
 
-class _DesktopTabPageState extends State<DesktopTabPage>
-    with WidgetsBindingObserver {
+class _DesktopTabPageState extends State<DesktopTabPage> {
   final tabController = DesktopTabController(tabType: DesktopTabType.main);
-  Timer? _visibilityCheckTimer;
 
   _DesktopTabPageState() {
     RemoteCountState.init();
@@ -72,7 +70,6 @@ class _DesktopTabPageState extends State<DesktopTabPage>
   void initState() {
     super.initState();
     // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
-    WidgetsBinding.instance.addObserver(this);
     _initDockMenu();
   }
 
@@ -96,19 +93,6 @@ class _DesktopTabPageState extends State<DesktopTabPage>
     }).catchError((e) => debugPrint('setDockMenuTitle failed: $e'));
   }
 
-  // WaveDesk: the display configuration changed (a monitor was unplugged, or
-  // the layout/resolution changed). A window parked on a display that is gone
-  // is unreachable, so re-home it. Debounced because macOS emits a burst of
-  // metric changes while the layout settles.
-  @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    _visibilityCheckTimer?.cancel();
-    _visibilityCheckTimer = Timer(const Duration(milliseconds: 500), () {
-      ensureMainWindowVisible();
-    });
-  }
-
   /*
   bool _handleKeyEvent(KeyEvent event) {
     if (!mouseIn && event is KeyDownEvent) {
@@ -122,8 +106,6 @@ class _DesktopTabPageState extends State<DesktopTabPage>
   @override
   void dispose() {
     // HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
-    _visibilityCheckTimer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
     Get.delete<DesktopTabController>();
 
     super.dispose();
