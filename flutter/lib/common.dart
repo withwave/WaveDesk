@@ -2131,7 +2131,7 @@ Future<void> setStartRemoteFullscreen(int windowId, {Rect? targetFrame}) async {
           final cur = await wc.getFrame();
           if ((cur.left - targetFrame.left).abs() > 2 ||
               (cur.top - targetFrame.top).abs() > 2) {
-            if (!await _setFrameNative(targetFrame)) {
+            if (!await _setFrameNative(targetFrame, self ? windowId : null)) {
               await wc.setFrame(targetFrame);
             }
             await Future.delayed(const Duration(milliseconds: 200));
@@ -2167,8 +2167,12 @@ Future<void> setStartRemoteFullscreen(int windowId, {Rect? targetFrame}) async {
 
 // WaveDesk: move a window without animation, natively. Returns false when the
 // native path is unavailable so callers can fall back to the plugin.
-Future<bool> _setFrameNative(Rect frame) async {
-  if (!isMacOS) return false;
+Future<bool> _setFrameNative(Rect frame, int? windowId) async {
+  // The native call moves the window of whichever ENGINE invokes it, so it is
+  // only valid when this engine owns the target window. restoreWindowPosition()
+  // also runs in the main window's engine (the reuse path) while targeting a
+  // sub window — using the native path there resized the MAIN window.
+  if (!isMacOS || windowId == null || kWindowId != windowId) return false;
   try {
     final ok = await kMacOSPermChannel.invokeMethod<bool>('setWindowFrameNative', {
       'l': frame.left,
@@ -2363,7 +2367,7 @@ Future<bool> restoreWindowPosition(WindowType type,
           final frame = Rect.fromLTWH(
               offsetLeftTop.dx, offsetLeftTop.dy, size.width, size.height);
           // Prefer the un-animated native move; see setWindowFrameNative.
-          if (!await _setFrameNative(frame)) {
+          if (!await _setFrameNative(frame, windowId)) {
             await wc.setFrame(frame);
           }
         }
@@ -2377,16 +2381,35 @@ Future<bool> restoreWindowPosition(WindowType type,
         // requested the window MUST be moved there first — otherwise "Connect
         // on current monitor" silently goes fullscreen on the primary display.
         // (WaveDesk)
-        if (!isMacOS || targetedScreen) {
+        Rect? fsTarget;
+        if (targetedScreen && mainScreen != null) {
+          // Restore the remembered windowed size, but only when it really is
+          // one: a frame recorded while the session was fullscreen/maximized
+          // is screen-sized, and applying it makes the window balloon on the
+          // way into fullscreen. In that case keep the current size, since the
+          // user's real windowed size was never recorded.
+          final cur = await wc.getFrame();
+          final savedIsWindowed =
+              lpos.isFullscreen != true && lpos.isMaximized != true;
+          final wantW = savedIsWindowed ? size.width : cur.width;
+          final wantH = savedIsWindowed ? size.height : cur.height;
+          final w = wantW.clamp(100.0, mainScreen.width);
+          final h = wantH.clamp(100.0, mainScreen.height);
+          fsTarget = Rect.fromLTWH(
+            mainScreen.left + (mainScreen.width - w) / 2,
+            mainScreen.top + (mainScreen.height - h) / 2,
+            w,
+            h,
+          );
+          if (!await _setFrameNative(fsTarget, windowId)) {
+            await wc.setFrame(fsTarget);
+          }
+        } else if (!isMacOS) {
           await restoreFrame();
         }
         // A retry loop is needed to avoid the window being restored after
         // fullscreen and to survive the sub window not being on screen yet.
-        setStartRemoteFullscreen(windowId,
-            targetFrame: targetedScreen && offsetLeftTop != null
-                ? Rect.fromLTWH(offsetLeftTop.dx, offsetLeftTop.dy, size.width,
-                    size.height)
-                : null);
+        setStartRemoteFullscreen(windowId, targetFrame: fsTarget);
       } else if (lpos.isMaximized == true) {
         await restoreFrame();
         // An duration is needed to avoid the window being restored after maximized.

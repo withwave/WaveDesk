@@ -183,6 +183,14 @@ was diagnosed to root cause and verified, not worked around.
   people happy with their layout); the main window's screen is used only when
   the remembered spot is on a display that is gone, or when the user picks
   **"현재 모니터에서 연결"** from the peer's menu.
+- **Trap worth remembering:** `setWindowFrameNative` moves the window of the
+  *engine that invokes it*. `restoreWindowPosition()` also runs in the **main**
+  window's engine (the reuse path in `_newSession`) while targeting a sub
+  window, so the native call is gated on `kWindowId == windowId` — without that
+  gate it resized the main window to the session window's frame.
+- A frame recorded while the session was fullscreen/maximized is screen-sized,
+  not a windowed size; restoring it made the window balloon on the way into
+  fullscreen, so it is only applied when `isFullscreen`/`isMaximized` are false.
 
 ### Server-side memory leak while being controlled
 - **Symptom:** when this Mac is **controlled** (server role), memory grows
