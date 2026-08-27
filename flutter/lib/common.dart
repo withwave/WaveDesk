@@ -2404,8 +2404,46 @@ Future<bool> restoreWindowPosition(WindowType type,
           if (!await _setFrameNative(fsTarget, windowId)) {
             await wc.setFrame(fsTarget);
           }
-        } else if (!isMacOS) {
-          await restoreFrame();
+          // Persist the new spot right now, while the window is still
+          // windowed. Once it is fullscreen every save falls back to
+          // setPreFrame(), which rewrites the OLD position — so a session
+          // killed while fullscreen would come back on the previous display.
+          //
+          // Written directly rather than via saveWindowPosition(): that routes
+          // the per-peer copy through kWindowEventGetRemoteList, and this runs
+          // before the tab page has registered its handler, so only the global
+          // copy was updated. restoreWindowPosition() prefers the PER-PEER
+          // value, which therefore still pointed at the old display.
+          final movedPos = LastWindowPosition(
+              fsTarget.width, fsTarget.height, fsTarget.left, fsTarget.top,
+              false, false);
+          await bind.setLocalFlutterOption(
+              k: windowFramePrefix + type.name, v: movedPos.toString());
+          if (peerId != null) {
+            bind.mainSetPeerFlutterOptionSync(
+                id: peerId,
+                k: windowFramePrefix + type.name,
+                v: movedPos.toString());
+          }
+        } else if (offsetLeftTop != null) {
+          // A remembered position exists. Upstream skipped applying it on
+          // macOS, so a session last used on another display came back on the
+          // primary one: macOS starts fullscreen on whichever screen the
+          // window occupies, and nothing had moved it. Same size rule as
+          // above — a frame saved while fullscreen/maximized is screen-sized,
+          // not a windowed size.
+          final cur = await wc.getFrame();
+          final savedIsWindowed =
+              lpos.isFullscreen != true && lpos.isMaximized != true;
+          fsTarget = Rect.fromLTWH(
+            offsetLeftTop.dx,
+            offsetLeftTop.dy,
+            savedIsWindowed ? size.width : cur.width,
+            savedIsWindowed ? size.height : cur.height,
+          );
+          if (!await _setFrameNative(fsTarget, windowId)) {
+            await wc.setFrame(fsTarget);
+          }
         }
         // A retry loop is needed to avoid the window being restored after
         // fullscreen and to survive the sub window not being on screen yet.

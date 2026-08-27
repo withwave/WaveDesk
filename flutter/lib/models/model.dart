@@ -2406,7 +2406,8 @@ class CanvasModel with ChangeNotifier {
       notifyListeners();
     }
     if (!isMobile && refreshMousePos) {
-      parent.target?.inputModel.refreshMousePos();
+      // WaveDesk: gated + no edge scrolling; see refreshMousePosIfInside().
+      parent.target?.inputModel.refreshMousePosIfInside();
     }
     tryUpdateScrollStyle(Duration.zero, style);
   }

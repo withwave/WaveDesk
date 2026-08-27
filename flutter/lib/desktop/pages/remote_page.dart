@@ -849,7 +849,13 @@ class _RemotePageState extends State<RemotePage>
   void leaveView(PointerExitEvent evt) {
     _ffi.canvasModel.disableEdgeScroll();
 
-    if (_ffi.ffiModel.keyboard) {
+    // WaveDesk: snapping the remote cursor to the nearest edge belongs to edge
+    // scrolling (note disableEdgeScroll() right above), but it ran on EVERY
+    // exit — including one caused by a local Space switch (Ctrl+Arrow). The
+    // remote cursor was parked on the screen edge, which pops the remote Dock
+    // open; coming back you find it sitting there. Only do it when edge
+    // scrolling is actually the active scroll style.
+    if (_ffi.ffiModel.keyboard && _ffi.inputModel.useEdgeScroll) {
       _ffi.inputModel.tryMoveEdgeOnExit(evt.position);
     }
 

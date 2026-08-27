@@ -1789,6 +1789,24 @@ class InputModel {
         'type': _kMouseEventMove,
       }, lastMousePos, edgeScroll: useEdgeScroll);
 
+  // WaveDesk: same refresh, but only when the pointer really is on the remote
+  // image, and without edge scrolling.
+  //
+  // View-style refreshes (resolution change, first image, view resize, and a
+  // remote Space switch triggered by Alt+Ctrl+Arrow) re-sent `lastMousePos`.
+  // When the pointer is not on the image that position is stale, and after a
+  // Space switch the canvas has re-laid out underneath it — the synthetic move
+  // landed at a screen edge on the remote and revealed its Dock. Worse, it
+  // could push the cursor off the remote image, which drops _cursorOverImage
+  // and releases the keyboard grab, so the next few keystrokes went nowhere.
+  void refreshMousePosIfInside() {
+    if (!_pointerInsideImage) return;
+    handleMouse({
+      'buttons': 0,
+      'type': _kMouseEventMove,
+    }, lastMousePos);
+  }
+
   void tryMoveEdgeOnExit(Offset pos) => handleMouse(
         {
           'buttons': 0,

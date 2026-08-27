@@ -1199,6 +1199,29 @@ List<TToggleMenu> toolbarKeyboardToggles(FFI ffi) {
         value: value && grabActive,
         onChanged: grabActive ? onChanged : null,
         child: Text(label)));
+
+    // WaveDesk: Alt+Ctrl+Arrow -> the remote gets Ctrl+Arrow, so a remote macOS
+    // runs Mission Control. Complements the item above rather than replacing
+    // it: plain Ctrl+Arrow can still drive the LOCAL desktop.
+    if (isMacOS) {
+      final remoteOption = kOptionAltCtrlArrowRemote;
+      final remoteValue = mainGetLocalBoolOptionSync(remoteOption);
+      onRemoteChanged(bool? v) async {
+        if (v == null) return;
+        await bind.mainSetLocalOption(
+            key: remoteOption, value: bool2option(remoteOption, v));
+      }
+
+      var remoteLabel =
+          translate('Send Alt+Ctrl+Arrow to remote as Ctrl+Arrow');
+      if (!grabActive) {
+        remoteLabel = '$remoteLabel  —  ${translate('Requires Input source 1')}';
+      }
+      v.add(TToggleMenu(
+          value: remoteValue && grabActive,
+          onChanged: grabActive ? onRemoteChanged : null,
+          child: Text(remoteLabel)));
+    }
   }
 
   // Relative mouse mode (gaming mode).

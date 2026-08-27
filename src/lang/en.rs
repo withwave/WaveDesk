@@ -199,6 +199,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Mouse wheel speed", "Mouse wheel speed"),
         ("Pass Ctrl+Arrow to local (Mission Control)", "Pass Ctrl+Arrow to local (Mission Control)"),
         ("Requires Input source 1", "Requires Input source 1"),
+        ("Send Alt+Ctrl+Arrow to remote as Ctrl+Arrow", "Send Alt+Ctrl+Arrow to remote as Ctrl+Arrow"),
         ("Show on current monitor", "Show on current monitor"),
         ("Connect on current monitor", "Connect on current monitor"),
         ("Pass desktop-switch shortcut to local", "Pass desktop-switch shortcut to local"),

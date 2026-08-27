@@ -682,6 +682,154 @@ fn is_local_passthrough_candidate(key: Key) -> bool {
     ) || is_local_passthrough_modifier(key)
 }
 
+// WaveDesk: `Alt + Ctrl + Arrow` is sent to the remote as plain `Ctrl + Arrow`,
+// so a remote macOS runs Mission Control / Spaces. Without the Alt prefix the
+// chord would be `Ctrl + Arrow`, which the LOCAL WindowServer claims before an
+// event tap can forward it — using a chord macOS does not bind sidesteps that
+// entirely. Default on; `option2bool`-style "not N" semantics.
+#[cfg(target_os = "macos")]
+const OPTION_ALT_CTRL_ARROW_REMOTE: &str = "alt-ctrl-arrow-to-remote";
+
+#[cfg(target_os = "macos")]
+#[inline]
+fn is_alt_ctrl_arrow_remote_enabled() -> bool {
+    hbb_common::config::LocalConfig::get_option(OPTION_ALT_CTRL_ARROW_REMOTE) != "N"
+}
+
+// Last physical Alt press per key. Deliberately NOT TO_RELEASE: that map is
+// emptied whenever the grab is released (focus loss), which left us unable to
+// tell the remote that Alt is up — the remote then saw Ctrl+Alt+Arrow and did
+// nothing, which is what made the chord work only every few tries.
+#[cfg(target_os = "macos")]
+lazy_static::lazy_static! {
+    static ref LAST_ALT_PRESS: Mutex<HashMap<Key, Event>> = Mutex::new(HashMap::new());
+    static ref LAST_CTRL_PRESS: Mutex<HashMap<Key, Event>> = Mutex::new(HashMap::new());
+}
+
+// macOS virtual key codes for the modifiers we synthesize.
+#[cfg(target_os = "macos")]
+const MACOS_VK_OPTION_L: u32 = 58;
+#[cfg(target_os = "macos")]
+const MACOS_VK_OPTION_R: u32 = 61;
+#[cfg(target_os = "macos")]
+const MACOS_VK_CONTROL_L: u32 = 59;
+
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn CGEventSourceFlagsState(state_id: u32) -> u64;
+}
+
+// Ask macOS for the modifiers that are physically held right now.
+//
+// MODIFIERS_STATE only advances while events are being forwarded to the remote,
+// i.e. while the grab is engaged. Using the local Ctrl+Arrow passthrough
+// switches Spaces, the session window loses focus, the grab is released — and
+// every modifier pressed from then on is invisible to us. The tracked state
+// then says "no Alt" even though the user is holding it, and the chord is
+// never recognised until every key is released and pressed again. The OS
+// always knows the truth, so ask it.
+#[cfg(target_os = "macos")]
+#[inline]
+fn os_ctrl_alt_down() -> (bool, bool) {
+    const COMBINED_SESSION_STATE: u32 = 0;
+    const MASK_CONTROL: u64 = 0x0004_0000;
+    const MASK_ALTERNATE: u64 = 0x0008_0000;
+    let flags = unsafe { CGEventSourceFlagsState(COMBINED_SESSION_STATE) };
+    (
+        flags & MASK_CONTROL != 0,
+        flags & MASK_ALTERNATE != 0,
+    )
+}
+
+// Arrow key pressed while both Alt and Ctrl are held.
+#[cfg(target_os = "macos")]
+#[inline]
+fn is_alt_ctrl_arrow_chord(key: Key) -> bool {
+    if !matches!(
+        key,
+        Key::UpArrow | Key::DownArrow | Key::LeftArrow | Key::RightArrow
+    ) {
+        return false;
+    }
+    let (ctrl, alt) = os_ctrl_alt_down();
+    ctrl && alt
+}
+
+// Build a modifier event from the arrow event that triggered us. Needed when
+// the modifier's own press was never seen (pressed while the grab was off), so
+// no cached event exists. On macOS map mode only `platform_code` is consulted.
+#[cfg(target_os = "macos")]
+fn synth_modifier_event(base: &Event, platform_code: u32, press: bool, key: Key) -> Event {
+    let mut ev = base.clone();
+    ev.platform_code = platform_code;
+    ev.position_code = platform_code;
+    ev.event_type = if press {
+        EventType::KeyPress(key)
+    } else {
+        EventType::KeyRelease(key)
+    };
+    ev
+}
+
+// Tell the remote that Alt is up, using the stored press events (the same
+// trick `release_remote_keys_for_events` uses). In map mode modifiers travel
+// as their own key events, so this is what turns Alt+Ctrl+Arrow into
+// Ctrl+Arrow on the far side.
+#[cfg(target_os = "macos")]
+fn release_alt_on_remote(keyboard_mode: &str, base: &Event) {
+    let mut alts: Vec<(Key, Event)> = {
+        let last = LAST_ALT_PRESS.lock().unwrap();
+        last.iter().map(|(k, e)| (*k, e.clone())).collect()
+    };
+    if alts.is_empty() {
+        // Alt was pressed while we were not watching; release both Options on
+        // the remote. Releasing a key that is not down is a no-op.
+        alts.push((
+            Key::Alt,
+            synth_modifier_event(base, MACOS_VK_OPTION_L, false, Key::Alt),
+        ));
+        alts.push((
+            Key::AltGr,
+            synth_modifier_event(base, MACOS_VK_OPTION_R, false, Key::AltGr),
+        ));
+    }
+    for (k, e) in &alts {
+        let mut ev = e.clone();
+        ev.event_type = EventType::KeyRelease(*k);
+        client::process_event(keyboard_mode, &ev, None);
+    }
+    // Sending that release also flips MODIFIERS_STATE, which is what
+    // is_alt_ctrl_arrow_chord() reads — so the chord stopped being recognised
+    // from the second press onwards. Alt is still physically down; restore it.
+    let mut m = MODIFIERS_STATE.lock().unwrap();
+    for (k, _) in &alts {
+        m.insert(*k, true);
+    }
+}
+
+// Make sure the remote really has Ctrl down. Releasing the grab (focus loss,
+// pointer leaving the image) releases every key on the remote, so a Ctrl the
+// user never let go of can be up on the far side — the arrow then arrives
+// bare and nothing happens. Re-pressing an already-pressed key is a no-op.
+#[cfg(target_os = "macos")]
+fn press_ctrl_on_remote(keyboard_mode: &str, base: &Event) {
+    let mut ctrls: Vec<(Key, Event)> = {
+        let last = LAST_CTRL_PRESS.lock().unwrap();
+        last.iter().map(|(k, e)| (*k, e.clone())).collect()
+    };
+    if ctrls.is_empty() {
+        ctrls.push((
+            Key::ControlLeft,
+            synth_modifier_event(base, MACOS_VK_CONTROL_L, true, Key::ControlLeft),
+        ));
+    }
+    for (k, e) in ctrls {
+        let mut ev = e.clone();
+        ev.event_type = EventType::KeyPress(k);
+        client::process_event(keyboard_mode, &ev, None);
+    }
+}
+
 // Whether the user opted in to passing the desktop-switch chord to the local OS.
 // Global local option, off by default ("Y" only when explicitly enabled).
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -738,6 +886,57 @@ fn start_grab_loop() {
                 && is_ctrl_arrow_toggle_hotkey(key)
             {
                 toggle_ctrl_arrow_local();
+                return None;
+            }
+
+            // WaveDesk: `Alt + Ctrl + Arrow` -> the remote receives `Ctrl + Arrow`
+            // (remote Mission Control / Spaces). The local OS ignores this chord,
+            // so unlike a bare Ctrl+Arrow it is never claimed before we see it.
+            // Alt stays released on the remote until it is physically released,
+            // so holding the chord and tapping arrows repeats cleanly.
+            #[cfg(target_os = "macos")]
+            if matches!(key, Key::Alt | Key::AltGr) {
+                let mut last = LAST_ALT_PRESS.lock().unwrap();
+                if is_press {
+                    last.insert(key, event.clone());
+                } else {
+                    last.remove(&key);
+                }
+            }
+            #[cfg(target_os = "macos")]
+            if matches!(key, Key::ControlLeft | Key::ControlRight) {
+                let mut last = LAST_CTRL_PRESS.lock().unwrap();
+                if is_press {
+                    last.insert(key, event.clone());
+                } else {
+                    last.remove(&key);
+                }
+            }
+            // The grab is gated on window focus and the pointer being over the
+            // remote image, and it can stay off for several seconds after a
+            // local Space switch — every key pressed in that window was
+            // dropped. This chord is unusable locally (macOS binds nothing to
+            // Ctrl+Alt+Arrow), so forward it whenever our app is frontmost,
+            // even before the grab has caught up. Frontmost is the safety
+            // gate: without it we would type into a remote session while the
+            // user is working in another local app.
+            #[cfg(target_os = "macos")]
+            if (KEYBOARD_HOOKED.load(Ordering::SeqCst)
+                || crate::platform::macos::is_app_active())
+                && is_alt_ctrl_arrow_chord(key)
+                && is_alt_ctrl_arrow_remote_enabled()
+            {
+                let mode = get_keyboard_mode();
+                // Re-assert on every press rather than tracking "already
+                // suppressed": the remote's modifier state can be reset behind
+                // our back (grab release on focus loss releases every held
+                // key), and a release for an already-released key is a no-op.
+                if is_press {
+                    release_alt_on_remote(&mode, &event);
+                    press_ctrl_on_remote(&mode, &event);
+                }
+                client::process_event(&mode, &event, None);
+                // Consumed locally: the chord is meant for the remote.
                 return None;
             }
 

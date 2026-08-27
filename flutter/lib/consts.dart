@@ -215,10 +215,13 @@ const String kOptionToggleShowMyCursor = "show-my-cursor";
 // instead of sending it to the remote. Global local option, off by default.
 // Must match `OPTION_CTRL_ARROW_LOCAL` in src/keyboard.rs.
 const String kOptionCtrlArrowLocal = "allow-ctrl-arrow-local";
+// WaveDesk: send Alt+Ctrl+Arrow to the remote as Ctrl+Arrow (remote Mission
+// Control). No "allow-"/"enable-" prefix, so it defaults to on.
+const String kOptionAltCtrlArrowRemote = "alt-ctrl-arrow-to-remote";
 
 // WaveDesk fork revision, shown in About. Bump together with the release
 // tag and the Windows CI REL value.
-const String kWaveDeskVersion = "1.4.9.18";
+const String kWaveDeskVersion = "1.4.9.26";
 
 const String kOptionDisableFloatingWindow = "disable-floating-window";
 

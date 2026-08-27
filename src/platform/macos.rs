@@ -1944,6 +1944,23 @@ fn get_server_start_time(sys: &mut System, path: &Path) -> Option<(i64, Pid)> {
     None
 }
 
+// WaveDesk: is our app the frontmost one? Used to decide whether a keyboard
+// chord may be forwarded to the remote while the rdev grab is not engaged —
+// the grab can stay off for seconds after returning from a local Space switch,
+// and everything typed in that window was being dropped.
+pub fn is_app_active() -> bool {
+    unsafe {
+        autoreleasepool(|| {
+            let app = NSApp();
+            if app == nil {
+                return false;
+            }
+            let active: bool = msg_send![app, isActive];
+            active
+        })
+    }
+}
+
 pub fn handle_application_should_open_untitled_file() {
     hbb_common::log::debug!("icon clicked on finder");
     let x = std::env::args().nth(1).unwrap_or_default();

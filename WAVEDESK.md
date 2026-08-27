@@ -191,6 +191,48 @@ was diagnosed to root cause and verified, not worked around.
 - A frame recorded while the session was fullscreen/maximized is screen-sized,
   not a windowed size; restoring it made the window balloon on the way into
   fullscreen, so it is only applied when `isFullscreen`/`isMaximized` are false.
+- The remembered position is now applied on macOS too. Upstream skipped it
+  there, so a session last used on another display came back on the primary
+  one — nothing had moved the window, and macOS starts fullscreen on whichever
+  screen the window occupies.
+- The new position is persisted the moment the window is moved, while it is
+  still windowed: once fullscreen, every save falls back to `setPreFrame()`,
+  which rewrites the OLD position, so a session killed while fullscreen came
+  back on the previous display. Written directly to both the global and the
+  per-peer key — `saveWindowPosition()` routes the per-peer copy through
+  `kWindowEventGetRemoteList`, which is not answerable that early, and
+  `restoreWindowPosition()` prefers the per-peer value.
+- Leaving the remote image snapped the remote cursor to the nearest screen edge
+  (`tryMoveEdgeOnExit`), which pops the remote Dock open. That belongs to edge
+  scrolling but ran on every exit — including one caused by a local Space
+  switch — so it is now gated on `useEdgeScroll`. View-style refreshes
+  (`updateViewStyle`) likewise re-sent a stale `lastMousePos`; that is now
+  skipped unless the pointer really is on the image, and without edge
+  scrolling.
+
+### 5. Send Alt+Ctrl+Arrow to the remote as Ctrl+Arrow
+`Alt + Ctrl + Arrow` reaches the remote as a plain `Ctrl + Arrow`, so a remote
+macOS runs Mission Control / Spaces. Complements feature 1 rather than
+replacing it: bare `Ctrl + Arrow` can still drive the LOCAL desktop, so both
+sides are usable at once instead of having to pick one.
+
+- Toggle: remote session toolbar -> keyboard menu, under the Ctrl+Arrow item.
+  On by default (`alt-ctrl-arrow-to-remote`, no `allow-`/`enable-` prefix).
+- macOS binds nothing to `Ctrl+Alt+Arrow`, so unlike a bare `Ctrl+Arrow` the
+  local WindowServer never claims it before the event tap sees it.
+- In map mode modifiers travel as their own key events, so Alt is released on
+  the remote (synthesised from the last physical Alt press) before the arrow is
+  forwarded. Ctrl is re-pressed at the same time: releasing the grab releases
+  every key on the remote, so a Ctrl the user never let go of could be up on
+  the far side.
+- Detection asks macOS for the real modifier state
+  (`CGEventSourceFlagsState`) rather than the tracked `MODIFIERS_STATE`, which
+  only advances while keys are being forwarded — i.e. not while the grab is
+  released.
+- Forwarded even when the grab is not engaged, provided the app is frontmost:
+  the grab can stay off for many seconds after a local Space switch (it waits
+  for the pointer to be over the remote image again) and everything typed in
+  that window was being dropped. Frontmost is the safety gate.
 
 ### Server-side memory leak while being controlled
 - **Symptom:** when this Mac is **controlled** (server role), memory grows
