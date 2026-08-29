@@ -234,6 +234,21 @@ sides are usable at once instead of having to pick one.
   for the pointer to be over the remote image again) and everything typed in
   that window was being dropped. Frontmost is the safety gate.
 
+### #6 — Windows: flicker / resize loop after a reconnect
+- **Symptom (Windows only):** after a connection retry the session flickered
+  and grew/shrank roughly once or twice a second, and a window that opened
+  fullscreen dropped back to a slightly smaller frame.
+- **Root cause:** the start-in-fullscreen retry loop added for macOS ran on
+  every platform. It re-asserts the target frame and re-applies fullscreen with
+  `force` up to 24 times. On macOS that is needed (fullscreen is a Space
+  transition that silently drops early requests); on Windows the plugin's
+  `SetFullscreen` saves and re-applies window styles on every call, so the
+  repeats *were* the flicker, and the frame re-assert pulled the window out of
+  fullscreen to the restored size.
+- **Fix:** the retry loop, the frame re-assert and the screen-targeting are
+  macOS-only. Windows and Linux keep upstream's behaviour — restore the frame,
+  then ask for fullscreen once.
+
 ### Server-side memory leak while being controlled
 - **Symptom:** when this Mac is **controlled** (server role), memory grows
   steadily — past 2 GB after about a week. `ps` RSS looks small because most of

@@ -2096,6 +2096,23 @@ Future<void> setStartRemoteFullscreen(int windowId, {Rect? targetFrame}) async {
   if (!_fsRetryInFlight.add(windowId)) return;
   try {
     final self = kWindowId == windowId;
+    // Everything below is a macOS workaround: fullscreen there is a Space
+    // transition that silently drops requests issued too early or aimed at a
+    // window that has not settled on its screen yet. Windows has no such
+    // behaviour, and re-forcing it made the plugin re-save and re-apply window
+    // styles every iteration — the session flickered and resized once or twice
+    // a second, and a window that started fullscreen dropped back to the
+    // slightly smaller restored frame. There, do what upstream did: ask once.
+    if (!isMacOS) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (self) {
+        stateGlobal.setFullscreen(true);
+      } else {
+        DesktopMultiWindow.invokeMethod(
+            windowId, kWindowEventSetFullscreen, 'true');
+      }
+      return;
+    }
     // NOTE: windowManager.isFullScreen() is NOT registered in sub windows
     // (MissingPluginException); WindowController is the reliable check.
     Future<bool> isFullscreen() async {
@@ -2259,7 +2276,11 @@ Future<bool> restoreWindowPosition(WindowType type,
         // https://github.com/rustdesk/rustdesk/blob/317639169359936f7f9f85ef445ec9774218772d/flutter/lib/utils/multi_window_manager.dart#L163
         // ... except that "centered" means the primary screen, not the screen
         // the user is working on, so prefer the main window's screen. (WaveDesk)
-        if (type == WindowType.RemoteDesktop &&
+        // macOS only: fullscreen follows the window's screen there, so a new
+        // session must be moved before it goes fullscreen. Windows keeps
+        // upstream's plain centring.
+        if (isMacOS &&
+            type == WindowType.RemoteDesktop &&
             windowId != null &&
             mainScreen != null) {
           await _centerOnScreen(windowId, mainScreen);
@@ -2382,7 +2403,10 @@ Future<bool> restoreWindowPosition(WindowType type,
         // on current monitor" silently goes fullscreen on the primary display.
         // (WaveDesk)
         Rect? fsTarget;
-        if (targetedScreen && mainScreen != null) {
+        if (!isMacOS) {
+          // Upstream behaviour: restore the saved frame, then go fullscreen.
+          await restoreFrame();
+        } else if (targetedScreen && mainScreen != null) {
           // Restore the remembered windowed size, but only when it really is
           // one: a frame recorded while the session was fullscreen/maximized
           // is screen-sized, and applying it makes the window balloon on the
@@ -2425,7 +2449,7 @@ Future<bool> restoreWindowPosition(WindowType type,
                 k: windowFramePrefix + type.name,
                 v: movedPos.toString());
           }
-        } else if (offsetLeftTop != null) {
+        } else if (isMacOS && offsetLeftTop != null) {
           // A remembered position exists. Upstream skipped applying it on
           // macOS, so a session last used on another display came back on the
           // primary one: macOS starts fullscreen on whichever screen the

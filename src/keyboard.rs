@@ -700,6 +700,21 @@ fn is_alt_ctrl_arrow_remote_enabled() -> bool {
 // emptied whenever the grab is released (focus loss), which left us unable to
 // tell the remote that Alt is up — the remote then saw Ctrl+Alt+Arrow and did
 // nothing, which is what made the chord work only every few tries.
+// Set once the remote has been prepared for this modifier hold (Alt released,
+// Ctrl asserted). Cleared when either modifier goes up.
+#[cfg(target_os = "macos")]
+static CHORD_PREPPED: AtomicBool = AtomicBool::new(false);
+
+// Where each arrow's press went: true = to the remote (Alt+Ctrl chord), false =
+// to the local OS (Ctrl+Arrow passthrough). The release MUST follow its press:
+// holding Ctrl and adding/dropping Alt between an arrow's press and release
+// otherwise sends the two halves to different machines, leaving a key stuck
+// down locally and an orphan release on the remote.
+#[cfg(target_os = "macos")]
+lazy_static::lazy_static! {
+    static ref ARROW_ROUTE: Mutex<HashMap<Key, bool>> = Mutex::new(HashMap::new());
+}
+
 #[cfg(target_os = "macos")]
 lazy_static::lazy_static! {
     static ref LAST_ALT_PRESS: Mutex<HashMap<Key, Event>> = Mutex::new(HashMap::new());
@@ -895,6 +910,15 @@ fn start_grab_loop() {
             // Alt stays released on the remote until it is physically released,
             // so holding the chord and tapping arrows repeats cleanly.
             #[cfg(target_os = "macos")]
+            if !is_press
+                && matches!(
+                    key,
+                    Key::Alt | Key::AltGr | Key::ControlLeft | Key::ControlRight
+                )
+            {
+                CHORD_PREPPED.store(false, Ordering::SeqCst);
+            }
+            #[cfg(target_os = "macos")]
             if matches!(key, Key::Alt | Key::AltGr) {
                 let mut last = LAST_ALT_PRESS.lock().unwrap();
                 if is_press {
@@ -912,6 +936,86 @@ fn start_grab_loop() {
                     last.remove(&key);
                 }
             }
+            // WaveDesk: prepare the remote the moment BOTH modifiers are held,
+            // not when the arrow arrives. Doing the Alt-release / Ctrl-press
+            // fix-up in the same instant as the arrow meant the remote could
+            // still be applying the modifier change when the arrow landed —
+            // it then saw a bare arrow and ignored it, which is why the first
+            // one or two presses did nothing even with the window focused.
+            // The user's own gap between pressing the modifiers and the arrow
+            // is plenty of settling time.
+            #[cfg(target_os = "macos")]
+            if is_press
+                && matches!(
+                    key,
+                    Key::Alt | Key::AltGr | Key::ControlLeft | Key::ControlRight
+                )
+                && is_alt_ctrl_arrow_remote_enabled()
+                && (KEYBOARD_HOOKED.load(Ordering::SeqCst)
+                    || crate::platform::macos::is_app_active())
+            {
+                // The OS flag for the key being pressed right now is not
+                // necessarily set yet when the tap sees it, so fold it in —
+                // otherwise the prep never fired on the modifier that
+                // completes the chord, and the fix-up fell back to the
+                // same-instant path on the arrow: first press ignored, second
+                // one fine.
+                let (mut ctrl, mut alt) = os_ctrl_alt_down();
+                match key {
+                    Key::Alt | Key::AltGr => alt = true,
+                    Key::ControlLeft | Key::ControlRight => ctrl = true,
+                    _ => {}
+                }
+                if ctrl && alt {
+                    let mode = get_keyboard_mode();
+                    let already = CHORD_PREPPED.swap(true, Ordering::SeqCst);
+                    match key {
+                        // Alt completes the chord: never tell the remote about
+                        // it. Sending Alt down and synthesising a release
+                        // leaves the far side churning through modifier
+                        // changes right before the arrow arrives.
+                        Key::Alt | Key::AltGr => {}
+                        // Ctrl completes it: forward Ctrl as usual, and drop
+                        // the Alt the remote was already told about.
+                        _ => {
+                            client::process_event(&mode, &event, None);
+                            if !already {
+                                release_alt_on_remote(&mode, &event);
+                            }
+                        }
+                    }
+                    // Always re-assert Ctrl, whichever key completed the chord.
+                    // The user typically already holds Ctrl from using the
+                    // local passthrough, and that switches Spaces locally,
+                    // which releases the grab — and releasing the grab
+                    // releases every key ON THE REMOTE. So Ctrl is still down
+                    // under the user's finger but gone on the far side, and
+                    // the arrow lands bare. Doing it here (not at the arrow)
+                    // leaves the user's own reaction time as settling time.
+                    if !already {
+                        press_ctrl_on_remote(&mode, &event);
+                    }
+                    return None;
+                }
+            }
+
+            #[cfg(target_os = "macos")]
+            if !is_press
+                && matches!(
+                    key,
+                    Key::UpArrow | Key::DownArrow | Key::LeftArrow | Key::RightArrow
+                )
+            {
+                let route = ARROW_ROUTE.lock().unwrap().remove(&key);
+                if let Some(to_remote) = route {
+                    if to_remote {
+                        client::process_event(&get_keyboard_mode(), &event, None);
+                        return None;
+                    }
+                    return Some(event);
+                }
+            }
+
             // The grab is gated on window focus and the pointer being over the
             // remote image, and it can stay off for several seconds after a
             // local Space switch — every key pressed in that window was
@@ -931,9 +1035,17 @@ fn start_grab_loop() {
                 // suppressed": the remote's modifier state can be reset behind
                 // our back (grab release on focus loss releases every held
                 // key), and a release for an already-released key is a no-op.
+                // Only fix the remote up here if the modifier-press path did
+                // not already do it. Re-injecting a Ctrl key-down in the same
+                // instant as the arrow is exactly the race this feature was
+                // fighting: the remote processed the arrow before the modifier
+                // took effect, so the first press did nothing.
                 if is_press {
-                    release_alt_on_remote(&mode, &event);
-                    press_ctrl_on_remote(&mode, &event);
+                    if !CHORD_PREPPED.load(Ordering::SeqCst) {
+                        release_alt_on_remote(&mode, &event);
+                        press_ctrl_on_remote(&mode, &event);
+                    }
+                    ARROW_ROUTE.lock().unwrap().insert(key, true);
                 }
                 client::process_event(&mode, &event, None);
                 // Consumed locally: the chord is meant for the remote.
@@ -958,6 +1070,10 @@ fn start_grab_loop() {
                 }
                 // The chord key (Arrow / Tab) is passed to the local OS only.
                 if is_local_passthrough_chord(key) {
+                    #[cfg(target_os = "macos")]
+                    if is_press {
+                        ARROW_ROUTE.lock().unwrap().insert(key, false);
+                    }
                     return Some(event);
                 }
             }
