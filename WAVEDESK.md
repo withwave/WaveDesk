@@ -263,7 +263,9 @@ sides are usable at once instead of having to pick one.
 - **Fix:** wrap the macOS display / cursor query paths in an autorelease pool —
   `libs/scrap/src/quartz/{ffi.rs,display.rs}` (`Display::scale/width/height`, via
   the objc runtime `objc_autoreleasePoolPush/Pop`, no new dependency) and
-  `src/platform/macos.rs` (`unsafe_get_cursor`'s `get_cursor_id` call).
+  `src/platform/macos.rs` (`unsafe_get_cursor`'s `get_cursor_id` call). The
+  cursor half is now upstream (1.5.x: `get_cursor` reads only the cursor seed,
+  inside an autorelease pool), so the fork dropped its own version.
 - **Verified** with `MallocStackLogging` + `malloc_history`: the leaking path
   grew **+468 live allocations per connect/disconnect cycle** before the fix and
   **0** after; footprint stays flat.
@@ -327,8 +329,8 @@ Bug-fix changes (see **Bug fixes** above):
   disables it (keyboard fix #1).
 - `libs/scrap/src/quartz/ffi.rs`, `libs/scrap/src/quartz/display.rs` —
   autorelease pool around `Display::scale/width/height` (memory-leak fix).
-- `src/platform/macos.rs` — autorelease pool around the cursor-change poll
-  (`unsafe_get_cursor`) (memory-leak fix).
+- `src/platform/macos.rs` — `is_app_active()` (frontmost check for the
+  Alt+Ctrl+Arrow chord). The cursor-poll leak fix is upstream now.
 
 ---
 
@@ -336,13 +338,14 @@ Bug-fix changes (see **Bug fixes** above):
 
 When upstream RustDesk changes, re-apply the fork on a fresh checkout:
 
-The patch's current base is upstream **`630b53110`** on `master` (post-1.4.9).
-The fork moved off the release tag to pick up upstream's macOS keyboard-focus
-fix (#15629), which is not in any tagged release yet. Check out that upstream version first, then apply:
+The patch's current base is upstream **`074006386`** on `master` (post-1.5.0,
+version 1.5.1; merged into the fork as 1.5.1.1). Earlier bases: `630b53110`
+(post-1.4.9, for the macOS keyboard-focus fix #15629). Check out that upstream
+version first, then apply:
 
 ```bash
 # in a fresh upstream checkout at the tracked version
-git checkout 630b53110        # current base; bump when rebasing onto a newer tag
+git checkout 074006386        # current base; bump when rebasing onto a newer tag
 ./scripts/apply-wavedesk.sh
 ```
 
@@ -351,7 +354,7 @@ changes vs the base tag, including the vendored `libs/rdev`, generated bridge
 files, and the icon). Regenerate the patch after committing new fork changes:
 
 ```bash
-git diff --binary 630b53110..HEAD > patches/wavedesk.patch   # <base-tag>..HEAD
+git diff --binary 074006386..HEAD > patches/wavedesk.patch   # <base-tag>..HEAD
 ```
 
 ---

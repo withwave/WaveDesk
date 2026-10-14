@@ -235,7 +235,7 @@ const String kOptionAltCtrlArrowRemote = "alt-ctrl-arrow-to-remote";
 
 // WaveDesk fork revision, shown in About. Bump together with the release
 // tag and the Windows CI REL value.
-const String kWaveDeskVersion = "1.4.9.32";
+const String kWaveDeskVersion = "1.5.1.1";
 
 const String kOptionDisableFloatingWindow = "disable-floating-window";
 
