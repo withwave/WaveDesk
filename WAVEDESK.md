@@ -93,7 +93,7 @@ was diagnosed to root cause and verified, not worked around.
   **once per process**, so a disabled tap stayed dead until restart. The mouse
   keeps working because mouse → remote uses Flutter's separate pointer path, not
   the keyboard tap.
-- **Fix:** vendored rdev (`libs/rdev`, pinned upstream commit `23e24dd6`) — its
+- **Fix:** vendored rdev (`libs/rdev`, pinned upstream commit `0904f23c`) — its
   macOS `raw_callback` now detects `kCGEventTapDisabledBy*` and re-enables the
   tap with `CGEventTapEnable(tap, true)`. Wired in via a Cargo
   `[patch."https://github.com/rustdesk-org/rdev"]`.
@@ -322,7 +322,7 @@ Key design points:
 
 Bug-fix changes (see **Bug fixes** above):
 
-- `libs/rdev/` (vendored fork of `rustdesk-org/rdev` @ `23e24dd6`) +
+- `libs/rdev/` (vendored fork of `rustdesk-org/rdev` @ `0904f23c`) +
   `Cargo.toml` `[patch]` — re-enable the macOS `CGEventTap` after the system
   disables it (keyboard fix #1).
 - `libs/scrap/src/quartz/ffi.rs`, `libs/scrap/src/quartz/display.rs` —

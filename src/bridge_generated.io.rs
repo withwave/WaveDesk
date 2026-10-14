@@ -85,6 +85,15 @@ pub extern "C" fn wire_session_start_with_displays(
 }
 
 #[no_mangle]
+pub extern "C" fn wire_session_get_cursor_shape(
+    port_: i64,
+    session_id: *mut wire_uint_8_list,
+    id: *mut wire_uint_8_list,
+) {
+    wire_session_get_cursor_shape_impl(port_, session_id, id)
+}
+
+#[no_mangle]
 pub extern "C" fn wire_session_get_remember(port_: i64, session_id: *mut wire_uint_8_list) {
     wire_session_get_remember_impl(port_, session_id)
 }
@@ -1712,6 +1721,11 @@ pub extern "C" fn wire_cm_close_connection(port_: i64, conn_id: i32) {
 }
 
 #[no_mangle]
+pub extern "C" fn wire_cm_close_connection_window(port_: i64, conn_id: i32) {
+    wire_cm_close_connection_window_impl(port_, conn_id)
+}
+
+#[no_mangle]
 pub extern "C" fn wire_cm_remove_disconnected_connection(port_: i64, conn_id: i32) {
     wire_cm_remove_disconnected_connection_impl(port_, conn_id)
 }
@@ -1826,6 +1840,16 @@ pub extern "C" fn wire_main_is_installed() -> support::WireSyncReturn {
 #[no_mangle]
 pub extern "C" fn wire_main_init_input_source() -> support::WireSyncReturn {
     wire_main_init_input_source_impl()
+}
+
+#[no_mangle]
+pub extern "C" fn wire_main_reload_keyboard_shortcuts() -> support::WireSyncReturn {
+    wire_main_reload_keyboard_shortcuts_impl()
+}
+
+#[no_mangle]
+pub extern "C" fn wire_main_get_default_keyboard_shortcuts() -> support::WireSyncReturn {
+    wire_main_get_default_keyboard_shortcuts_impl()
 }
 
 #[no_mangle]

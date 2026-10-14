@@ -62,3 +62,5 @@ flutter/web/
 # WaveDesk local build logs
 /cargo_*.log
 /flutter_*.log
+# Local git worktrees
+.worktrees/

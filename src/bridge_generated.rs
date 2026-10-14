@@ -216,6 +216,24 @@ fn wire_session_start_with_displays_impl(
         },
     )
 }
+fn wire_session_get_cursor_shape_impl(
+    port_: MessagePort,
+    session_id: impl Wire2Api<uuid::Uuid> + UnwindSafe,
+    id: impl Wire2Api<String> + UnwindSafe,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap::<_, _, _, Option<CursorShape>>(
+        WrapInfo {
+            debug_name: "session_get_cursor_shape",
+            port: Some(port_),
+            mode: FfiCallMode::Normal,
+        },
+        move || {
+            let api_session_id = session_id.wire2api();
+            let api_id = id.wire2api();
+            move |task_callback| Ok(session_get_cursor_shape(api_session_id, api_id))
+        },
+    )
+}
 fn wire_session_get_remember_impl(
     port_: MessagePort,
     session_id: impl Wire2Api<uuid::Uuid> + UnwindSafe,
@@ -3865,6 +3883,22 @@ fn wire_cm_close_connection_impl(port_: MessagePort, conn_id: impl Wire2Api<i32>
         },
     )
 }
+fn wire_cm_close_connection_window_impl(
+    port_: MessagePort,
+    conn_id: impl Wire2Api<i32> + UnwindSafe,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap::<_, _, _, ()>(
+        WrapInfo {
+            debug_name: "cm_close_connection_window",
+            port: Some(port_),
+            mode: FfiCallMode::Normal,
+        },
+        move || {
+            let api_conn_id = conn_id.wire2api();
+            move |task_callback| Ok(cm_close_connection_window(api_conn_id))
+        },
+    )
+}
 fn wire_cm_remove_disconnected_connection_impl(
     port_: MessagePort,
     conn_id: impl Wire2Api<i32> + UnwindSafe,
@@ -4134,6 +4168,26 @@ fn wire_main_init_input_source_impl() -> support::WireSyncReturn {
             mode: FfiCallMode::Sync,
         },
         move || Ok(main_init_input_source()),
+    )
+}
+fn wire_main_reload_keyboard_shortcuts_impl() -> support::WireSyncReturn {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync(
+        WrapInfo {
+            debug_name: "main_reload_keyboard_shortcuts",
+            port: None,
+            mode: FfiCallMode::Sync,
+        },
+        move || Ok(main_reload_keyboard_shortcuts()),
+    )
+}
+fn wire_main_get_default_keyboard_shortcuts_impl() -> support::WireSyncReturn {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync(
+        WrapInfo {
+            debug_name: "main_get_default_keyboard_shortcuts",
+            port: None,
+            mode: FfiCallMode::Sync,
+        },
+        move || Ok(main_get_default_keyboard_shortcuts()),
     )
 }
 fn wire_main_is_installed_lower_version_impl() -> support::WireSyncReturn {
@@ -4989,6 +5043,25 @@ impl Wire2Api<usize> for usize {
 }
 // Section: impl IntoDart
 
+impl support::IntoDart for CursorShape {
+    fn into_dart(self) -> support::DartAbi {
+        vec![
+            self.hotx.into_into_dart().into_dart(),
+            self.hoty.into_into_dart().into_dart(),
+            self.width.into_into_dart().into_dart(),
+            self.height.into_into_dart().into_dart(),
+            self.colors.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl support::IntoDartExceptPrimitive for CursorShape {}
+impl rust2dart::IntoIntoDart<CursorShape> for CursorShape {
+    fn into_into_dart(self) -> Self {
+        self
+    }
+}
+
 impl support::IntoDart for EventToUI {
     fn into_dart(self) -> support::DartAbi {
         match self {
@@ -4998,6 +5071,22 @@ impl support::IntoDart for EventToUI {
                 2.into_dart(),
                 field0.into_into_dart().into_dart(),
                 field1.into_into_dart().into_dart(),
+            ],
+            Self::Cursor {
+                id,
+                hotx,
+                hoty,
+                width,
+                height,
+                colors,
+            } => vec![
+                3.into_dart(),
+                id.into_into_dart().into_dart(),
+                hotx.into_into_dart().into_dart(),
+                hoty.into_into_dart().into_dart(),
+                width.into_into_dart().into_dart(),
+                height.into_into_dart().into_dart(),
+                colors.into_into_dart().into_dart(),
             ],
         }
         .into_dart()
