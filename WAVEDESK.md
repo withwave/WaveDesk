@@ -318,7 +318,10 @@ Key design points:
 - `src/lang/en.rs`, `src/lang/ko.rs` — UI strings; permission prompts → "WaveDesk".
 - `flutter/macos/Runner/Info.plist` — CFBundleName/DisplayName/URLName.
 - `flutter/macos/Runner/Configs/AppInfo.xcconfig` — PRODUCT_NAME, PRODUCT_MODULE_NAME, bundle id.
-- `flutter/macos/Runner.xcodeproj/project.pbxproj` — bundle id.
+- `flutter/macos/Runner.xcodeproj/project.pbxproj` — bundle id; deployment
+  target 12.0 (Xcode 27 minimum).
+- `flutter/macos/Podfile` (+ `Podfile.lock` checksum) — pods' deployment
+  target 12.0 (Xcode 27 minimum).
 - `flutter/macos/Runner/AppIcon.icns` — WaveDesk icon.
 - `docs/macos-local-passthrough.md` — feature design notes.
 
@@ -370,6 +373,9 @@ VCPKG_ROOT=~/vcpkg MACOSX_DEPLOYMENT_TARGET=10.14 \
   cargo build --locked --features hwcodec,flutter --release
 cp target/release/liblibrustdesk.dylib target/release/librustdesk.dylib
 # 3. flutter build (Flutter 3.24.5)
+#    The app's macOS deployment target is 12.0 (Runner project + Podfile):
+#    Xcode 27 rejects anything lower. A universal build also needs Rosetta
+#    (Flutter 3.24.5's x64 gen_snapshot is an Intel binary).
 ( cd flutter && flutter build macos --release )   # -> WaveDesk.app
 cp -rf target/release/service \
   flutter/build/macos/Build/Products/Release/WaveDesk.app/Contents/MacOS/
