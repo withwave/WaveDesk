@@ -341,14 +341,15 @@ Bug-fix changes (see **Bug fixes** above):
 
 When upstream RustDesk changes, re-apply the fork on a fresh checkout:
 
-The patch's current base is upstream **`074006386`** on `master` (post-1.5.0,
-version 1.5.1; merged into the fork as 1.5.1.1). Earlier bases: `630b53110`
+The patch's current base is upstream **`cda384733`** on `master` (tag 1.5.1
+plus one commit; merged into the fork as 1.5.1.2). Earlier bases: `074006386`
+(pre-1.5.1-tag master, fork 1.5.1.1), `630b53110`
 (post-1.4.9, for the macOS keyboard-focus fix #15629). Check out that upstream
 version first, then apply:
 
 ```bash
 # in a fresh upstream checkout at the tracked version
-git checkout 074006386        # current base; bump when rebasing onto a newer tag
+git checkout cda384733        # current base; bump when rebasing onto a newer tag
 ./scripts/apply-wavedesk.sh
 ```
 
@@ -357,7 +358,7 @@ changes vs the base tag, including the vendored `libs/rdev`, generated bridge
 files, and the icon). Regenerate the patch after committing new fork changes:
 
 ```bash
-git diff --binary 074006386..HEAD > patches/wavedesk.patch   # <base-tag>..HEAD
+git diff --binary cda384733..HEAD > patches/wavedesk.patch   # <base-tag>..HEAD
 ```
 
 ---
