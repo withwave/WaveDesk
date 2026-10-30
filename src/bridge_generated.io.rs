@@ -2136,6 +2136,11 @@ pub extern "C" fn wire_main_remove_trusted_devices(port_: i64, json: *mut wire_u
 }
 
 #[no_mangle]
+pub extern "C" fn wire_main_renew_trusted_devices(port_: i64, json: *mut wire_uint_8_list) {
+    wire_main_renew_trusted_devices_impl(port_, json)
+}
+
+#[no_mangle]
 pub extern "C" fn wire_main_clear_trusted_devices(port_: i64) {
     wire_main_clear_trusted_devices_impl(port_)
 }

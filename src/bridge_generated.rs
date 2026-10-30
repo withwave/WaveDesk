@@ -2133,7 +2133,7 @@ fn wire_main_set_option_impl(
         move || {
             let api_key = key.wire2api();
             let api_value = value.wire2api();
-            move |task_callback| Ok(main_set_option(api_key, api_value))
+            move |task_callback| main_set_option(api_key, api_value)
         },
     )
 }
@@ -2166,7 +2166,7 @@ fn wire_main_set_options_impl(port_: MessagePort, json: impl Wire2Api<String> + 
         },
         move || {
             let api_json = json.wire2api();
-            move |task_callback| Ok(main_set_options(api_json))
+            move |task_callback| main_set_options(api_json)
         },
     )
 }
@@ -4799,7 +4799,7 @@ fn wire_main_get_trusted_devices_impl(port_: MessagePort) {
             port: Some(port_),
             mode: FfiCallMode::Normal,
         },
-        move || move |task_callback| Ok(main_get_trusted_devices()),
+        move || move |task_callback| main_get_trusted_devices(),
     )
 }
 fn wire_main_remove_trusted_devices_impl(
@@ -4814,7 +4814,23 @@ fn wire_main_remove_trusted_devices_impl(
         },
         move || {
             let api_json = json.wire2api();
-            move |task_callback| Ok(main_remove_trusted_devices(api_json))
+            move |task_callback| main_remove_trusted_devices(api_json)
+        },
+    )
+}
+fn wire_main_renew_trusted_devices_impl(
+    port_: MessagePort,
+    json: impl Wire2Api<String> + UnwindSafe,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap::<_, _, _, ()>(
+        WrapInfo {
+            debug_name: "main_renew_trusted_devices",
+            port: Some(port_),
+            mode: FfiCallMode::Normal,
+        },
+        move || {
+            let api_json = json.wire2api();
+            move |task_callback| main_renew_trusted_devices(api_json)
         },
     )
 }
@@ -4825,7 +4841,7 @@ fn wire_main_clear_trusted_devices_impl(port_: MessagePort) {
             port: Some(port_),
             mode: FfiCallMode::Normal,
         },
-        move || move |task_callback| Ok(main_clear_trusted_devices()),
+        move || move |task_callback| main_clear_trusted_devices(),
     )
 }
 fn wire_main_max_encrypt_len_impl() -> support::WireSyncReturn {
