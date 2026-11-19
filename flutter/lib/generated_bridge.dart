@@ -55,6 +55,7 @@ abstract class Rustdesk {
       required String password,
       required bool isSharedPassword,
       String? connToken,
+      required String loginMethod,
       dynamic hint});
 
   FlutterRustBridgeTaskConstMeta get kSessionAddSyncConstMeta;
@@ -1847,6 +1848,7 @@ class RustdeskImpl implements Rustdesk {
       required String password,
       required bool isSharedPassword,
       String? connToken,
+      required String loginMethod,
       dynamic hint}) {
     var arg0 = _platform.api2wire_Uuid(sessionId);
     var arg1 = _platform.api2wire_String(id);
@@ -1860,9 +1862,10 @@ class RustdeskImpl implements Rustdesk {
     var arg9 = _platform.api2wire_String(password);
     var arg10 = isSharedPassword;
     var arg11 = _platform.api2wire_opt_String(connToken);
+    var arg12 = _platform.api2wire_String(loginMethod);
     return _platform.executeSync(FlutterRustBridgeSyncTask(
       callFfi: () => _platform.inner.wire_session_add_sync(arg0, arg1, arg2,
-          arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11),
+          arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12),
       parseSuccessData: _wire2api_String,
       constMeta: kSessionAddSyncConstMeta,
       argValues: [
@@ -1877,7 +1880,8 @@ class RustdeskImpl implements Rustdesk {
         forceRelay,
         password,
         isSharedPassword,
-        connToken
+        connToken,
+        loginMethod
       ],
       hint: hint,
     ));
@@ -1898,7 +1902,8 @@ class RustdeskImpl implements Rustdesk {
           "forceRelay",
           "password",
           "isSharedPassword",
-          "connToken"
+          "connToken",
+          "loginMethod"
         ],
       );
 
@@ -8257,6 +8262,7 @@ class RustdeskWire implements FlutterRustBridgeWireBase {
     ffi.Pointer<wire_uint_8_list> password,
     bool is_shared_password,
     ffi.Pointer<wire_uint_8_list> conn_token,
+    ffi.Pointer<wire_uint_8_list> login_method,
   ) {
     return _wire_session_add_sync(
       session_id,
@@ -8271,6 +8277,7 @@ class RustdeskWire implements FlutterRustBridgeWireBase {
       password,
       is_shared_password,
       conn_token,
+      login_method,
     );
   }
 
@@ -8288,6 +8295,7 @@ class RustdeskWire implements FlutterRustBridgeWireBase {
               ffi.Bool,
               ffi.Pointer<wire_uint_8_list>,
               ffi.Bool,
+              ffi.Pointer<wire_uint_8_list>,
               ffi.Pointer<wire_uint_8_list>)>>('wire_session_add_sync');
   late final _wire_session_add_sync = _wire_session_add_syncPtr.asFunction<
       WireSyncReturn Function(
@@ -8302,6 +8310,7 @@ class RustdeskWire implements FlutterRustBridgeWireBase {
           bool,
           ffi.Pointer<wire_uint_8_list>,
           bool,
+          ffi.Pointer<wire_uint_8_list>,
           ffi.Pointer<wire_uint_8_list>)>();
 
   void wire_session_start(

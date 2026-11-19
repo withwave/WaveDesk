@@ -128,6 +128,7 @@ fn wire_session_add_sync_impl(
     password: impl Wire2Api<String> + UnwindSafe,
     is_shared_password: impl Wire2Api<bool> + UnwindSafe,
     conn_token: impl Wire2Api<Option<String>> + UnwindSafe,
+    login_method: impl Wire2Api<String> + UnwindSafe,
 ) -> support::WireSyncReturn {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync(
         WrapInfo {
@@ -148,6 +149,7 @@ fn wire_session_add_sync_impl(
             let api_password = password.wire2api();
             let api_is_shared_password = is_shared_password.wire2api();
             let api_conn_token = conn_token.wire2api();
+            let api_login_method = login_method.wire2api();
             Ok(session_add_sync(
                 api_session_id,
                 api_id,
@@ -161,6 +163,7 @@ fn wire_session_add_sync_impl(
                 api_password,
                 api_is_shared_password,
                 api_conn_token,
+                api_login_method,
             ))
         },
     )

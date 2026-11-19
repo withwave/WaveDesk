@@ -235,6 +235,7 @@ class RustDeskMultiWindowManager {
     String remoteId,
     List<int> windows, {
     String? password,
+    String loginMethod = '',
     bool? forceRelay,
     String? switchUuid,
     bool? isRDP,
@@ -279,6 +280,9 @@ class RustDeskMultiWindowManager {
     }
     if (connToken != null) {
       params['connToken'] = connToken;
+    }
+    if (loginMethod.isNotEmpty) {
+      params['loginMethod'] = loginMethod;
     }
     final msg = jsonEncode(params);
 
@@ -326,6 +330,7 @@ class RustDeskMultiWindowManager {
   Future<MultiWindowCallResult> newRemoteDesktop(
     String remoteId, {
     String? password,
+    String loginMethod = '',
     bool? isSharedPassword,
     String? switchUuid,
     bool? forceRelay,
@@ -337,6 +342,7 @@ class RustDeskMultiWindowManager {
       remoteId,
       _remoteDesktopWindows,
       password: password,
+      loginMethod: loginMethod,
       forceRelay: forceRelay,
       switchUuid: switchUuid,
       isSharedPassword: isSharedPassword,
@@ -347,6 +353,7 @@ class RustDeskMultiWindowManager {
   Future<MultiWindowCallResult> newFileTransfer(
     String remoteId, {
     String? password,
+    String loginMethod = '',
     bool? isSharedPassword,
     bool? forceRelay,
     String? connToken,
@@ -357,6 +364,7 @@ class RustDeskMultiWindowManager {
       remoteId,
       _fileTransferWindows,
       password: password,
+      loginMethod: loginMethod,
       forceRelay: forceRelay,
       isSharedPassword: isSharedPassword,
       connToken: connToken,
@@ -366,6 +374,7 @@ class RustDeskMultiWindowManager {
   Future<MultiWindowCallResult> newViewCamera(
     String remoteId, {
     String? password,
+    String loginMethod = '',
     bool? isSharedPassword,
     String? switchUuid,
     bool? forceRelay,
@@ -377,6 +386,7 @@ class RustDeskMultiWindowManager {
       remoteId,
       _viewCameraWindows,
       password: password,
+      loginMethod: loginMethod,
       forceRelay: forceRelay,
       switchUuid: switchUuid,
       isSharedPassword: isSharedPassword,
@@ -388,6 +398,7 @@ class RustDeskMultiWindowManager {
     String remoteId,
     bool isRDP, {
     String? password,
+    String loginMethod = '',
     bool? isSharedPassword,
     bool? forceRelay,
     String? connToken,
@@ -398,6 +409,7 @@ class RustDeskMultiWindowManager {
       remoteId,
       _portForwardWindows,
       password: password,
+      loginMethod: loginMethod,
       forceRelay: forceRelay,
       isRDP: isRDP,
       isSharedPassword: isSharedPassword,
@@ -408,6 +420,7 @@ class RustDeskMultiWindowManager {
   Future<MultiWindowCallResult> newTerminal(
     String remoteId, {
     String? password,
+    String loginMethod = '',
     bool? isSharedPassword,
     bool? forceRelay,
     String? connToken,
@@ -433,6 +446,9 @@ class RustDeskMultiWindowManager {
       "isSharedPassword": isSharedPassword,
       "connToken": connToken,
     };
+    if (loginMethod.isNotEmpty) {
+      params['loginMethod'] = loginMethod;
+    }
     final msg = jsonEncode(params);
 
     // Always create a new window for terminal

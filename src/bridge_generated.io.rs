@@ -48,6 +48,7 @@ pub extern "C" fn wire_session_add_sync(
     password: *mut wire_uint_8_list,
     is_shared_password: bool,
     conn_token: *mut wire_uint_8_list,
+    login_method: *mut wire_uint_8_list,
 ) -> support::WireSyncReturn {
     wire_session_add_sync_impl(
         session_id,
@@ -62,6 +63,7 @@ pub extern "C" fn wire_session_add_sync(
         password,
         is_shared_password,
         conn_token,
+        login_method,
     )
 }
 
